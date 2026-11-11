@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Project Custodian — Smart Patcher v3.1</title>
+  <style>
+    body {
+      background-color: #0d1117;
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", monospace;
+      padding: 24px;
+      margin: 0;
+    }
+    .container { max-width: 920px; margin: 0 auto; }
+    h1 { color: #58a6ff; font-size: 20px; margin-bottom: 6px; }
+    p { font-size: 13px; color: #8b949e; margin-bottom: 14px; }
+    .folder-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #161b22;
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px solid #30363d;
+      margin-bottom: 14px;
+    }
+    .toolbar { display: flex; gap: 8px; margin-bottom: 8px; }
+    button {
+      background: #238636;
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.15s, transform 0.05s;
+    }
+    button:hover { background: #2ea043; }
+    button:active { transform: scale(0.98); }
+    button:disabled { background: #21262d; color: #8b949e; cursor: not-allowed; }
+    .btn-secondary { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
+    .btn-secondary:hover { background: #30363d; color: #fff; }
+    .btn-danger { background: #21262d; color: #f85149; border: 1px solid #30363d; }
+    .btn-danger:hover { background: #b62324; color: #fff; }
+    textarea {
+      width: 100%;
+      height: 320px;
+      background: #0d1117;
+      color: #7ee787;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 12px;
+      font-family: monospace;
+      font-size: 12px;
+      box-sizing: border-box;
+      resize: vertical;
+    }
+    .actions-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 12px;
+    }
+    #log {
+      margin-top: 16px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      max-height: 240px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .log-success { color: #3fb950; }
+    .log-err { color: #f85149; font-weight: bold; }
+    .log-info { color: #58a6ff; }
+    .log-finish {
+      color: #f0883e;
+      font-weight: bold;
+      border-top: 1px dashed #30363d;
+      padding-top: 6px;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>CUSTODIAN SMART PATCHER v3.1</h1>
+    <p>Точечный и полнофайловый патчер с нормализацией отступов и отчетом о завершении.</p>
+
+    <div class="folder-bar">
+      <button id="btnSelectDir">1. Выбрать папку проекта</button>
+      <span id="folderStatus" style="font-size: 12px; color: #8b949e;">Папка не выбрана</span>
+    </div>
+
+    <div class="toolbar">
+      <button id="btnPasteClipboard" class="btn-secondary">📋 Вставить из буфера</button>
+      <button id="btnClearInput" class="btn-danger">✕ Очистить поле</button>
+      <button id="btnClearLog" class="btn-secondary">Очистить лог</button>
+    </div>
+
+    <textarea id="patchInput" placeholder="Вставьте блок патча (=== PATCH_FILE или === REPLACE_FILE)..."></textarea>
+
+    <div class="actions-bar">
+      <button id="btnApply" disabled style="padding: 10px 22px; font-size: 13px;">3. Применить патч</button>
+      <span id="patchSummary" style="font-size: 12px; color: #8b949e;"></span>
+    </div>
+
+    <div id="log">Ожидание выбора папки проекта...</div>
+  </div>
+
+  <script>
+    let rootHandle = null;
+    const logEl = document.getElementById('log');
+    const folderStatus = document.getElementById('folderStatus');
+    const btnApply = document.getElementById('btnApply');
+    const patchInput = document.getElementById('patchInput');
+    const patchSummary = document.getElementById('patchSummary');
+
+    function log(msg, type = 'info') {
+      const cls = type === 'err' ? 'log-err' : (type === 'success' ? 'log-success' : (type === 'finish' ? 'log-finish' : 'log-info'));
+      logEl.innerHTML += `<div class="${cls}">[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    document.getElementById('btnSelectDir').addEventListener('click', async () => {
+      try {
+        rootHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+        folderStatus.textContent = `Папка: ${rootHandle.name}`;
+        folderStatus.style.color = '#3fb950';
+        btnApply.disabled = false;
+        log(`Папка "${rootHandle.name}" подключена успешно!`, 'success');
+      } catch (e) {
+        log(`Ошибка выбора папки: ${e.message}`, 'err');
+      }
+    });
+
+    document.getElementById('btnClearInput').addEventListener('click', () => {
+      patchInput.value = '';
+      patchSummary.textContent = '';
+      log('Поле ввода очищено.', 'info');
+    });
+
+    document.getElementById('btnClearLog').addEventListener('click', () => {
+      logEl.innerHTML = '';
+      log('Лог очищен.', 'info');
+    });
+
+    document.getElementById('btnPasteClipboard').addEventListener('click', async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        patchInput.value = text;
+        updateSummary();
+        log('Текст вставлен из буфера обмена.', 'success');
+      } catch (e) {
+        log('Вставьте текст вручную (Ctrl+V).', 'err');
+      }
+    });
+
+    patchInput.addEventListener('input', updateSummary);
+
+    function updateSummary() {
+      const val = patchInput.value;
+      const patchOps = (val.match(/=== PATCH_FILE:/g) || []).length;
+      const replaceOps = (val.match(/=== REPLACE_FILE:/g) || []).length;
+      if (patchOps || replaceOps) {
+        patchSummary.textContent = `Файлов к изменению: ${patchOps + replaceOps}`;
+      } else {
+        patchSummary.textContent = '';
+      }
+    }
+
+    async function getFileHandleRecursive(path) {
+      const parts = path.replace(/\\/g, '/').split('/').filter(p => p.length > 0);
+      let currentDir = rootHandle;
+      for (let i = 0; i < parts.length - 1; i++) {
+        currentDir = await currentDir.getDirectoryHandle(parts[i], { create: false });
+      }
+            return await currentDir.getFileHandle(parts[parts.length - 1], { create: true });
+    }
+
+    function fuzzyReplace(source, search, replace) {
+      const normSource = source.replace(/\r\n/g, '\n');
+      const normSearch = search.replace(/\r\n/g, '\n').trim();
+      const normReplace = replace.replace(/\r\n/g, '\n');
+
+      if (normSource.includes(normSearch)) {
+        return normSource.replace(normSearch, normReplace);
+      }
+
+      const searchLines = normSearch.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      const sourceLines = normSource.split('\n');
+
+      for (let i = 0; i <= sourceLines.length - searchLines.length; i++) {
+        let match = true;
+        for (let j = 0; j < searchLines.length; j++) {
+          if (sourceLines[i + j].trim() !== searchLines[j]) {
+            match = false;
+            break;
+          }
+        }
+        if (match) {
+          sourceLines.splice(i, searchLines.length, normReplace);
+          return sourceLines.join('\n');
+        }
+      }
+      return null;
+    }
+
+    btnApply.addEventListener('click', async () => {
+      if (!rootHandle) return;
+      const rawText = patchInput.value.trim();
+      if (!rawText) return;
+
+      const startTime = performance.now();
+      const rawBlocks = rawText.split(/(?==== (?:PATCH_FILE|REPLACE_FILE):)/g).filter(b => b.trim());
+
+      let totalSuccess = 0;
+      let totalErrors = 0;
+
+      for (const block of rawBlocks) {
+        const isFullReplace = block.startsWith('=== REPLACE_FILE:');
+        const firstLineEnd = block.indexOf('\n');
+        const header = block.substring(0, firstLineEnd).trim();
+        const filePath = header.split(':')[1].trim();
+        const body = block.substring(firstLineEnd + 1);
+
+        log(`Обработка: ${filePath}...`, 'info');
+
+        try {
+          const fileHandle = await getFileHandleRecursive(filePath);
+
+          if (isFullReplace) {
+            const cleanContent = body.replace(/^\n+|\n+$/g, '');
+            const writable = await fileHandle.createWritable();
+            await writable.write(cleanContent);
+            await writable.close();
+            totalSuccess++;
+            log(`✔ [ПОЛНАЯ ЗАМЕНА] ${filePath} успешно перезаписан!`, 'success');
+            continue;
+          }
+
+          const file = await fileHandle.getFile();
+          let currentContent = await file.text();
+          const operations = body.split('<<< SEARCH').slice(1);
+          let allOpsOk = true;
+
+          for (const op of operations) {
+            const splitPoint = op.indexOf('=== REPLACE');
+            const endPoint = op.indexOf('>>>');
+            if (splitPoint === -1 || endPoint === -1) continue;
+
+            const searchPart = op.substring(0, splitPoint).replace(/^\n+|\n+$/g, '');
+            const replacePart = op.substring(splitPoint + 11, endPoint).replace(/^\n+|\n+$/g, '');
+
+            const result = fuzzyReplace(currentContent, searchPart, replacePart);
+            if (result !== null) {
+              currentContent = result;
+              totalSuccess++;
+              log(`  ✔ Блок успешно заменен в ${filePath}`, 'success');
+            } else {
+              allOpsOk = false;
+              totalErrors++;
+              log(`  ✖ ОШИБКА: Блок не найден в ${filePath}! Искали:\n${searchPart.slice(0, 100)}...`, 'err');
+            }
+          }
+
+          if (allOpsOk) {
+            const writable = await fileHandle.createWritable();
+            await writable.write(currentContent);
+            await writable.close();
+            log(`✔ Все изменения сохранены в ${filePath}`, 'success');
+          } else {
+            log(`✖ Файл ${filePath} НЕ изменен из-за ошибок поиска!`, 'err');
+          }
+
+        } catch (err) {
+          totalErrors++;
+          log(`Ошибка доступа к ${filePath}: ${err.message}`, 'err');
+        }
+      }
+
+      const elapsed = Math.round(performance.now() - startTime);
+
+      if (totalErrors === 0) {
+        log(`🎉 [ГОТОВО] Все файлы успешно обновлены за ${elapsed}ms! Успешных операций: ${totalSuccess}, Ошибок: 0.`, 'finish');
+        const oldText = btnApply.textContent;
+        btnApply.textContent = '✔ Успешно завершено!';
+        btnApply.style.background = '#2ea043';
+        setTimeout(() => {
+          btnApply.textContent = oldText;
+          btnApply.style.background = '';
+        }, 2200);
+      } else {
+        log(`⚠ [ВНИМАНИЕ] Процесс завершен с ошибками за ${elapsed}ms. Успешно: ${totalSuccess}, Ошибок: ${totalErrors}.`, 'err');
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>PROJECT CUSTODIAN — Step 2: Warhammer Mobs</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0; width: 100%; height: 100%;
+      overflow: hidden; background: #080a0c;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #c0d1e6; user-select: none;
+    }
+    #wrapper { position: relative; width: 100vw; height: 100vh; display: flex; flex-direction: column; }
+    #nav {
+      display: flex; gap: 8px; padding: 10px 16px;
+      background: #0d1218; border-bottom: 1px solid #1c2633; z-index: 10;
+      align-items: center;
+    }
+    .btn {
+      background: #141c26; border: 1px solid #27364a; color: #8ba2c2;
+      padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s ease;
+    }
+    .btn:hover { background: #1c2838; color: #fff; }
+    .btn.active {
+      background: #9d2b38; color: #fff; border-color: #e63946;
+      box-shadow: 0 0 10px rgba(230, 57, 70, 0.4);
+    }
+    #canvas-wrap { position: relative; flex: 1; width: 100%; height: 100%; }
+    canvas { display: block; width: 100%; height: 100%; }
+    #card {
+      position: absolute; bottom: 20px; left: 20px;
+      background: rgba(12, 16, 22, 0.94); border: 1px solid #28374a;
+      border-left: 4px solid #a82435; border-radius: 4px;
+      padding: 14px 18px; max-width: 480px; pointer-events: none;
+      backdrop-filter: blur(8px); box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    }
+    #card-title { font-size: 14px; font-weight: bold; color: #ff6b7a; margin-bottom: 4px; }
+    #card-desc { font-size: 12px; color: #94a7bf; line-height: 1.5; }
+    #hud-right {
+      position: absolute; top: 16px; right: 20px;
+      background: rgba(12, 16, 22, 0.9); border: 1px solid #202b3a;
+      border-radius: 4px; padding: 10px 14px; font-size: 11px; color: #7f95b0;
+      pointer-events: none; line-height: 1.6;
+    }
+    #hud-right span { color: #00f0ff; font-weight: bold; }
+    #hud-right .wh { color: #ff4d6d; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div id="wrapper">
+    <div id="nav">
+      <span style="font-size:12px; font-weight:bold; color:#7f97b5; margin-right:8px;">ОСМОТР МОБОВ:</span>
+      <button class="btn active" id="btn-arena">[0] Боевая Арена (Все)</button>
+      <button class="btn" id="btn-sprout">[1] Corrupted Sprout (R=13)</button>
+      <button class="btn" id="btn-stalker">[2] Thorn Stalker (R=20)</button>
+      <button class="btn" id="btn-dasher">[3] Spore Dasher (R=10)</button>
+    </div>
+
+    <div id="canvas-wrap">
+      <canvas id="stage"></canvas>
+
+      <div id="hud-right">
+        <span>[WASD]</span> — Ход | <span>[MOUSE]</span> — Прицел<br>
+        <span class="wh">[SPACE / ЛКМ]</span> — Стрельба (Проверка хит-флеша)<br>
+        <span>[H]</span> — Точные хитбоксы (R=18, 13, 20, 10)<br>
+        <span>[R]</span> — Заспавнить еще волну
+      </div>
+
+      <div id="card">
+        <div id="card-title">Бестиарий Биома 1: Искаженная Био-порча (Blight)</div>
+        <div id="card-desc">Отвратительный биопанк в духе Warhammer: гниющая кость, пульсирующие желчные нарывы, хитиновые пластины и токсичная слизь. Испытайте их поведение в бою против нашего Хранителя.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 0. ПРОЦЕДУРНЫЙ СПРАЙТ УТВЕРЖДЕННОГО ХРАНИТЕЛЯ (ВАРИАНТ №4)
+    // =========================================================================
+    function drawVine(ctx, pts, w = 1.6) {
+      ctx.save();
+      ctx.strokeStyle = '#32471e';
+      ctx.lineWidth = w + 0.8;
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y + 0.6);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y + 0.6);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#4e6b2c';
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawHeroCustodian(ctx, t, moving, dashing) {
+      // Траки
+      [-13, 7].forEach(ty => {
+        ctx.fillStyle = '#161d26';
+        ctx.beginPath(); ctx.roundRect(-12, ty, 23, 6, 2.5); ctx.fill();
+        ctx.strokeStyle = '#273445'; ctx.lineWidth = 1; ctx.stroke();
+        [-8, -1, 6].forEach(rx => {
+          ctx.fillStyle = '#42372d';
+          ctx.beginPath(); ctx.arc(rx, ty + 3, 2, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#222c3a';
+          ctx.beginPath(); ctx.arc(rx, ty + 3, 1.2, 0, Math.PI * 2); ctx.fill();
+        });
+      });
+
+      // Корпус
+      ctx.fillStyle = '#2f3f52';
+      ctx.strokeStyle = '#1a2430'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.ellipse(0, 0, 12, 10, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+      // Ржавчина
+      ctx.fillStyle = '#5e432d';
+      ctx.beginPath(); ctx.arc(-5, -6, 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(6, 6, 2, 0, Math.PI * 2); ctx.fill();
+
+      // Антенна с пружинкой
+      const antWobble = Math.sin(t * 14) * (moving ? 3.5 : 1.2);
+      ctx.strokeStyle = '#60758f'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(-13, antWobble * 0.4); ctx.lineTo(-17, antWobble); ctx.stroke();
+      ctx.fillStyle = '#00f0ff'; ctx.shadowColor = '#00f0ff'; ctx.shadowBlur = 6;
+      ctx.beginPath(); ctx.arc(-17, antWobble, 1.8, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+
+      // Монитор
+      ctx.fillStyle = '#0c1218';
+      ctx.beginPath(); ctx.roundRect(1, -6, 9.5, 12, 2.5); ctx.fill();
+
+      // Глазки
+      ctx.fillStyle = dashing ? '#ffd000' : '#00f0ff';
+      ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 5;
+      const blink = Math.sin(t * 3) > 0.96 ? 0.3 : 2.1;
+      ctx.beginPath();
+      ctx.ellipse(5.5, -2.8, 1.3, blink, 0, 0, Math.PI * 2);
+      ctx.ellipse(5.5, 2.8, 1.3, blink, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Лианы, шинирующие траки (Вариант №4)
+      drawVine(ctx, [{x: -9, y: -13}, {x: -11, y: -5}, {x: -10, y: 7}, {x: -8, y: 13}], 2.2);
+      drawVine(ctx, [{x: 2, y: -13}, {x: 0, y: -6}, {x: 1, y: 6}, {x: 3, y: 13}], 2.0);
+    }
+
+    // =========================================================================
+    // 1. ПРОЦЕДУРНЫЕ СПРАЙТЫ ВРАГОВ (WARHAMMER BIOPUNK)
+    // =========================================================================
+    const EnemyRenderers = {
+
+      // -----------------------------------------------------------------------
+      // 1. CORRUPTED SPROUT (R = 13px) — Личинка / Паук-нарыв
+      // -----------------------------------------------------------------------
+      drawSprout(ctx, t, e) {
+        const isHit = e.hitFlash > 0;
+        const pulse = Math.sin(t * 8 + e.seed) * 0.12;
+
+        ctx.save();
+        if (isHit) {
+          ctx.filter = 'brightness(2.5) drop-shadow(0 0 6px #70ff00)';
+        }
+
+        // 6 суставчатых черных лапок (шевелятся при беге)
+        const legWalk = Math.sin(t * 18 + e.seed);
+        ctx.strokeStyle = '#14080c';
+        ctx.lineWidth = 1.6;
+        ctx.lineCap = 'round';
+
+        const legOffsets = [
+          { bx: 2, by: -6, angle: -0.9 + legWalk * 0.4, len1: 6, len2: 7 },
+          { bx: -2, by: -7, angle: -1.6 - legWalk * 0.4, len1: 7, len2: 8 },
+          { bx: -6, by: -6, angle: -2.3 + legWalk * 0.4, len1: 6, len2: 7 },
+          { bx: 2, by: 6, angle: 0.9 - legWalk * 0.4, len1: 6, len2: 7 },
+          { bx: -2, by: 7, angle: 1.6 + legWalk * 0.4, len1: 7, len2: 8 },
+          { bx: -6, by: 6, angle: 2.3 - legWalk * 0.4, len1: 6, len2: 7 }
+        ];
+
+        legOffsets.forEach(l => {
+          ctx.beginPath();
+          ctx.moveTo(l.bx, l.by);
+          const kx = l.bx + Math.cos(l.angle) * l.len1;
+          const ky = l.by + Math.sin(l.angle) * l.len1;
+          ctx.lineTo(kx, ky);
+          ctx.lineTo(kx + Math.cos(l.angle + 0.7) * l.len2, ky + Math.sin(l.angle + 0.7) * l.len2);
+          ctx.stroke();
+        });
+
+        // Заднее раздутое брюшко (гниющая плоть)
+        ctx.fillStyle = '#300f18';
+        ctx.strokeStyle = '#1a050b';
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.ellipse(-3, 0, 8.5 * (1 + pulse), 7.5 * (1 - pulse), 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Огромный желчный нарыв на спине (ядовито-зеленый пузырь Нургла)
+        const boilPulse = Math.sin(t * 10 + e.seed) * 0.15;
+        const boilGrad = ctx.createRadialGradient(-3, -1, 1, -3, -1, 6);
+        boilGrad.addColorStop(0, '#c7f43b');
+        boilGrad.addColorStop(0.6, '#73a818');
+        boilGrad.addColorStop(1, '#274706');
+        ctx.fillStyle = boilGrad;
+        ctx.beginPath();
+        ctx.arc(-3, -1, 5 * (1 + boilPulse), 0, Math.PI * 2);
+        ctx.fill();
+
+        // Мелкие нарывные пузырьки
+        ctx.fillStyle = '#a6df24';
+        ctx.beginPath(); ctx.arc(1, 3, 1.8, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(-7, 2, 1.4, 0, Math.PI * 2); ctx.fill();
+
+        // Головогрудь и хитиновые жвала
+        ctx.fillStyle = '#1c080e';
+        ctx.beginPath();
+        ctx.ellipse(5, 0, 4.5, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Зазубренные челюсти
+        const jawSnap = Math.sin(t * 12) * 0.2;
+        ctx.strokeStyle = '#d8cfb4'; // Гнилая кость
+        ctx.lineWidth = 1.5;
+        // Верхнее жвало
+        ctx.beginPath(); ctx.moveTo(7, -2); ctx.lineTo(12, -4 + jawSnap * 3); ctx.lineTo(10, -1); ctx.stroke();
+        // Нижнее жвало
+        ctx.beginPath(); ctx.moveTo(7, 2); ctx.lineTo(12, 4 - jawSnap * 3); ctx.lineTo(10, 1); ctx.stroke();
+
+        // Бусинки черных нечеловеческих глаз
+        ctx.fillStyle = '#ff1133';
+        ctx.beginPath(); ctx.arc(7, -2.5, 1.1, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(7, 2.5, 1.1, 0, Math.PI * 2); ctx.fill();
+
+        ctx.restore();
+      },
+
+      // -----------------------------------------------------------------------
+      // 2. THORN STALKER (R = 20px) — Тяжелый костяной таран-мутант
+      // -----------------------------------------------------------------------
+      drawStalker(ctx, t, e) {
+        const isHit = e.hitFlash > 0;
+        const breath = Math.sin(t * 3.5 + e.seed) * 0.06;
+
+        ctx.save();
+        if (isHit) {
+          ctx.filter = 'brightness(2.3) drop-shadow(0 0 8px #ff2244)';
+        }
+
+        // 4 тяжелые бронированные лапы с шипами
+        const stomp = Math.sin(t * 8 + e.seed);
+        ctx.strokeStyle = '#240810';
+        ctx.lineWidth = 3.5;
+        ctx.lineCap = 'round';
+
+        [
+          { x: 6, y: -14 + stomp * 2, tx: 12, ty: -19 },
+          { x: -8, y: -13 - stomp * 2, tx: -14, ty: -18 },
+          { x: 6, y: 14 - stomp * 2, tx: 12, ty: 19 },
+          { x: -8, y: 13 + stomp * 2, tx: -14, ty: 18 }
+        ].forEach(leg => {
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(leg.x, leg.y);
+          ctx.lineTo(leg.tx, leg.ty);
+          ctx.stroke();
+
+          // Костяные наконечники-когти
+          ctx.fillStyle = '#d0c8ae';
+          ctx.beginPath(); ctx.arc(leg.tx, leg.ty, 2, 0, Math.PI * 2); ctx.fill();
+        });
+
+        // Массивное подбрюшье из пульсирующей плоти
+        ctx.fillStyle = '#3a0c16';
+        ctx.beginPath();
+        ctx.ellipse(-2, 0, 14 * (1 + breath), 12, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Сегментированный хитиновый панцирь спины (3 тяжелые пластины)
+        const plates = [
+          { x: -10, rx: 7, ry: 10, color: '#1f070e' },
+          { x: -3, rx: 8, ry: 12, color: '#2c0b14' },
+          { x: 4, rx: 7, ry: 11, color: '#3b0e1b' }
+        ];
+
+        plates.forEach(p => {
+          ctx.fillStyle = p.color;
+          ctx.strokeStyle = '#0e0306';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.ellipse(p.x, 0, p.rx, p.ry, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          // Зазубренные шипы на каждом сегменте
+          ctx.fillStyle = '#baa580'; // Старая кость
+          ctx.beginPath();
+          ctx.moveTo(p.x - 3, -p.ry);
+          ctx.lineTo(p.x + 2, -p.ry - 5);
+          ctx.lineTo(p.x + 3, -p.ry + 2);
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.beginPath();
+          ctx.moveTo(p.x - 3, p.ry);
+          ctx.lineTo(p.x + 2, p.ry + 5);
+          ctx.lineTo(p.x + 3, p.ry - 2);
+          ctx.closePath();
+          ctx.fill();
+        });
+
+        // Громадный костяной таранный лобный щит (Cranial Crest)
+        ctx.fillStyle = '#dcd3b8'; // Кость
+        ctx.strokeStyle = '#5a4628';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(18, 0);          // Острый таранный бивень
+        ctx.lineTo(13, -12);        // Верхний рог
+        ctx.lineTo(4, -13);         // Верхний скос
+        ctx.lineTo(6, 0);           // Центральное ребро
+        ctx.lineTo(4, 13);          // Нижний скос
+        ctx.lineTo(13, 12);         // Нижний рог
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Трещины на кости и потеки сукровицы
+        ctx.strokeStyle = '#5a0914';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(14, -2); ctx.lineTo(9, -6); ctx.lineTo(12, -9);
+        ctx.moveTo(11, 3); ctx.lineTo(7, 7);
+        ctx.stroke();
+
+        // Смертоносные жвала-клыки под костяным щитом
+        ctx.strokeStyle = '#871a2b';
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.moveTo(10, -6); ctx.lineTo(19, -4); ctx.lineTo(14, -1);
+        ctx.moveTo(10, 6); ctx.lineTo(19, 4); ctx.lineTo(14, 1);
+        ctx.stroke();
+
+        ctx.restore();
+      },
+
+      // -----------------------------------------------------------------------
+      // 3. SPORE DASHER (R = 10px) — Быстрый летун-трутень
+      // -----------------------------------------------------------------------
+      drawDasher(ctx, t, e) {
+        const isHit = e.hitFlash > 0;
+
+        ctx.save();
+        if (isHit) {
+          ctx.filter = 'brightness(2.5) drop-shadow(0 0 6px #ffff00)';
+        }
+
+        // Высокочастотные размытые крылья (Tyranid Gargoyle / Hornet)
+        const wingFlap = Math.sin(t * 55 + e.seed);
+        ctx.fillStyle = 'rgba(180, 240, 180, 0.45)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.lineWidth = 0.8;
+
+        // Верхнее крыло
+        ctx.beginPath();
+        ctx.ellipse(0, -9 * wingFlap, 6, 9 * Math.abs(wingFlap), -0.3, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+
+        // Нижнее крыло
+        ctx.beginPath();
+        ctx.ellipse(0, 9 * wingFlap, 6, 9 * Math.abs(wingFlap), 0.3, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+
+        // Стреловидное тело осы
+        ctx.fillStyle = '#26060f';
+        ctx.strokeStyle = '#470f1e';
+        ctx.lineWidth = 1.2;
+
+        // Брюшко с полосами
+        ctx.beginPath();
+        ctx.moveTo(-11, 0);       // Острие жала
+        ctx.lineTo(-4, -4.5);
+        ctx.lineTo(3, -3.5);
+        ctx.lineTo(8, 0);         // Острие головы
+        ctx.lineTo(3, 3.5);
+        ctx.lineTo(-4, 4.5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Желтые ядовитые предупреждающие сегменты на брюшке
+        ctx.strokeStyle = '#c4b223';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(-2, -4); ctx.lineTo(-2, 4);
+        ctx.moveTo(-6, -3); ctx.lineTo(-6, 3);
+        ctx.stroke();
+
+        // Хитиновая игла-жало
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(-8, 0); ctx.lineTo(-14, 0);
+        ctx.stroke();
+
+        // Фасеточный выпуклый глаз
+        ctx.fillStyle = '#00ff88';
+        ctx.shadowColor = '#00ff88';
+        ctx.shadowBlur = 4;
+        ctx.beginPath(); ctx.arc(4, -1.8, 1.4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(4, 1.8, 1.4, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.restore();
+      }
+    };
+
+    // =========================================================================
+    // 2. ИГРОВАЯ СИМУЛЯЦИЯ И АРЕНА
+    // =========================================================================
+    const canvas = document.getElementById('stage');
+    const ctx = canvas.getContext('2d');
+    const cardTitle = document.getElementById('card-title');
+    const cardDesc = document.getElementById('card-desc');
+
+    let showHitboxes = true;
+    let inspectMode = 0; // 0: арена, 1: Sprout, 2: Stalker, 3: Dasher
+
+    function resize() {
+      canvas.width = canvas.parentElement.clientWidth;
+      canvas.height = canvas.parentElement.clientHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Герой
+    const hero = {
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      angle: 0,
+      r: 18,
+      speed: 2.7,
+      moving: false,
+      isDashing: false
+    };
+
+    // Пули героя
+    const bullets = [];
+    function shootBullet() {
+      const spd = 9;
+      bullets.push({
+        x: hero.x + Math.cos(hero.angle) * 16,
+        y: hero.y + Math.sin(hero.angle) * 16,
+        vx: Math.cos(hero.angle) * spd,
+        vy: Math.sin(hero.angle) * spd,
+        life: 1.2
+      });
+    }
+
+    // Брызги токсичной жижи при ранении
+    const bloodParticles = [];
+    function spawnBlood(x, y, color = '#78b820') {
+      for (let i = 0; i < 7; i++) {
+        const ang = Math.random() * Math.PI * 2;
+        const spd = 30 + Math.random() * 80;
+        bloodParticles.push({
+          x, y,
+          vx: Math.cos(ang) * spd,
+          vy: Math.sin(ang) * spd,
+          color,
+          size: 2 + Math.random() * 2,
+          life: 0.4 + Math.random() * 0.3
+        });
+      }
+    }
+
+    // Мобы
+    const enemies = [];
+    function spawnWave() {
+      enemies.length = 0;
+      // 1. Sprout (R=13)
+      for (let i = 0; i < 6; i++) {
+        enemies.push({
+          type: 'sprout', r: 13,
+          x: hero.x + (Math.random() - 0.5) * 600,
+          y: hero.y + (Math.random() - 0.5) * 450,
+          angle: 0, speed: 1.4 + Math.random() * 0.5,
+          hp: 3, hitFlash: 0, seed: Math.random() * 10
+        });
+      }
+      // 2. Stalker (R=20)
+      for (let i = 0; i < 2; i++) {
+        enemies.push({
+          type: 'stalker', r: 20,
+          x: hero.x + (Math.random() > 0.5 ? 350 : -350),
+          y: hero.y + (Math.random() - 0.5) * 300,
+          angle: 0, speed: 0.9,
+          hp: 12, hitFlash: 0, seed: Math.random() * 10
+        });
+      }
+      // 3. Dasher (R=10)
+      for (let i = 0; i < 4; i++) {
+        enemies.push({
+          type: 'dasher', r: 10,
+          x: hero.x + (Math.random() - 0.5) * 500,
+          y: hero.y + (Math.random() > 0.5 ? 280 : -280),
+          angle: 0, speed: 3.2,
+          hp: 2, hitFlash: 0, seed: Math.random() * 10,
+          dashTimer: Math.random() * 2
+        });
+      }
+    }
+    spawnWave();
+
+    // Управление
+    const keys = {};
+    const mouse = { x: hero.x, y: hero.y };
+    let isMouseDown = false;
+    let shootCooldown = 0;
+
+    window.addEventListener('keydown', e => {
+      keys[e.key.toLowerCase()] = true;
+      if (e.key.toLowerCase() === 'h') showHitboxes = !showHitboxes;
+      if (e.key.toLowerCase() === 'r') spawnWave();
+      if (e.key === '0') setInspect(0);
+      if (e.key === '1') setInspect(1);
+      if (e.key === '2') setInspect(2);
+      if (e.key === '3') setInspect(3);
+      if (e.code === 'Space') isMouseDown = true;
+    });
+
+    window.addEventListener('keyup', e => {
+      keys[e.key.toLowerCase()] = false;
+      if (e.code === 'Space') isMouseDown = false;
+    });
+
+    canvas.addEventListener('mousedown', () => isMouseDown = true);
+    window.addEventListener('mouseup', () => isMouseDown = false);
+    canvas.addEventListener('mousemove', e => {
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = e.clientX - rect.left;
+      mouse.y = e.clientY - rect.top;
+    });
+
+    // Кнопки навигации
+    const navBtns = [
+      document.getElementById('btn-arena'),
+      document.getElementById('btn-sprout'),
+      document.getElementById('btn-stalker'),
+      document.getElementById('btn-dasher')
+    ];
+
+    function setInspect(mode) {
+      inspectMode = mode;
+      navBtns.forEach((b, i) => b.classList.toggle('active', i === mode));
+
+      if (mode === 0) {
+        cardTitle.textContent = "Бестиарий Биома 1: Арена выживания";
+        cardDesc.textContent = "Все 3 типа мобов охотятся за Хранителем. Проверьте регистрацию хитбоксов и хит-флеш в бою.";
+      } else if (mode === 1) {
+        cardTitle.textContent = "1. Corrupted Sprout (Hitbox Radius: 13px)";
+        cardDesc.textContent = "Слабый зараженный нарост/паукообразная личинка. Быстро перебирает шестью суставчатыми ножками, пульсирует зеленой желчью Нургла.";
+      } else if (mode === 2) {
+        cardTitle.textContent = "2. Thorn Stalker (Hitbox Radius: 20px)";
+        cardDesc.textContent = "Тяжелый бронированный монстр-таран. Массивный лобный костяной щит с трещинами, шипованный панцирь и сокрушительные жвала.";
+      } else if (mode === 3) {
+        cardTitle.textContent = "3. Spore Dasher (Hitbox Radius: 10px)";
+        cardDesc.textContent = "Стремительный летун/мутант. Вибрирующие прозрачные крылья, стреловидное хитиновое тело и ядовитое жало с токсичными спорами.";
+      }
+    }
+
+    navBtns.forEach((b, i) => b.addEventListener('click', () => setInspect(i)));
+
+    // =========================================================================
+    // 3. ОСНОВНОЙ ЦИКЛ ОБНОВЛЕНИЯ И РЕНДЕРА
+    // =========================================================================
+    let lastTime = performance.now();
+
+    function loop(now) {
+      const dt = Math.min((now - lastTime) / 1000, 0.1);
+      lastTime = now;
+      const t = now / 1000;
+
+      // 1. Движение Хранителя
+      let dx = 0, dy = 0;
+      if (keys['w'] || keys['ц'] || keys['arrowup']) dy -= 1;
+      if (keys['s'] || keys['ы'] || keys['arrowdown']) dy += 1;
+      if (keys['a'] || keys['ф'] || keys['arrowleft']) dx -= 1;
+      if (keys['d'] || keys['в'] || keys['arrowright']) dx += 1;
+
+      hero.moving = dx !== 0 || dy !== 0;
+      if (hero.moving) {
+        const len = Math.hypot(dx, dy);
+        hero.x += (dx / len) * hero.speed;
+        hero.y += (dy / len) * hero.speed;
+      }
+      hero.x = Math.max(30, Math.min(canvas.width - 30, hero.x));
+      hero.y = Math.max(30, Math.min(canvas.height - 30, hero.y));
+
+      // Прицеливание
+      const targetAngle = Math.atan2(mouse.y - hero.y, mouse.x - hero.x);
+      let diff = targetAngle - hero.angle;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      hero.angle += diff * 0.25;
+
+      // Стрельба
+      shootCooldown -= dt;
+      if (isMouseDown && shootCooldown <= 0) {
+        shootBullet();
+        shootCooldown = 0.16;
+      }
+
+      // Пули
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        b.x += b.vx;
+        b.y += b.vy;
+        b.life -= dt;
+        if (b.life <= 0) { bullets.splice(i, 1); continue; }
+
+        // Проверка столкновений с мобами по точному радиусу хитбокса
+        for (let j = 0; j < enemies.length; j++) {
+          const e = enemies[j];
+          const dist = Math.hypot(b.x - e.x, b.y - e.y);
+          if (dist < e.r + 3) {
+            e.hp -= 1;
+            e.hitFlash = 0.12;
+            spawnBlood(b.x, b.y, e.type === 'sprout' ? '#a6df24' : '#881020');
+            bullets.splice(i, 1);
+            if (e.hp <= 0) {
+              spawnBlood(e.x, e.y, '#90e020');
+              enemies.splice(j, 1);
+            }
+            break;
+          }
+        }
+      }
+
+      // Частицы крови
+      for (let i = bloodParticles.length - 1; i >= 0; i--) {
+        const p = bloodParticles[i];
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt;
+        if (p.life <= 0) bloodParticles.splice(i, 1);
+      }
+
+      // AI и физика мобов
+      enemies.forEach(e => {
+        if (e.hitFlash > 0) e.hitFlash -= dt;
+
+        // Вектор к игроку
+        const toPlayerX = hero.x - e.x;
+        const toPlayerY = hero.y - e.y;
+        const dist = Math.hypot(toPlayerX, toPlayerY);
+
+        if (inspectMode === 0) {
+          // Обычное преследование
+          e.angle = Math.atan2(toPlayerY, toPlayerX);
+          if (dist > e.r + hero.r) {
+            e.x += Math.cos(e.angle) * e.speed;
+            e.y += Math.sin(e.angle) * e.speed;
+          }
+        }
+      });
+
+      // -----------------------------------------------------------------------
+      // 2. ОТРИСОВКА
+      // -----------------------------------------------------------------------
+      ctx.fillStyle = '#080a0d';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Техническая арена
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < canvas.width; x += 40) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += 40) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+      }
+
+      // Пятна слизи на полу
+      bloodParticles.forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+      });
+
+      // Пули игрока
+      ctx.fillStyle = '#00f0ff';
+      ctx.shadowColor = '#00f0ff'; ctx.shadowBlur = 8;
+      bullets.forEach(b => {
+        ctx.beginPath(); ctx.arc(b.x, b.y, 2.5, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.shadowBlur = 0;
+
+      // РЕЖИМ 0: ОБЩАЯ БОЕВАЯ АРЕНА
+      if (inspectMode === 0) {
+        // Мобы
+        enemies.forEach(e => {
+          ctx.save();
+          ctx.translate(e.x, e.y);
+
+          // Тень
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+          ctx.beginPath(); ctx.ellipse(0, 3, e.r, e.r * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+
+          ctx.rotate(e.angle);
+
+          if (e.type === 'sprout') EnemyRenderers.drawSprout(ctx, t, e);
+          else if (e.type === 'stalker') EnemyRenderers.drawStalker(ctx, t, e);
+          else if (e.type === 'dasher') EnemyRenderers.drawDasher(ctx, t, e);
+          ctx.restore();
+
+          // Оверлей хитбокса
+          if (showHitboxes) {
+            ctx.save();
+            ctx.translate(e.x, e.y);
+            ctx.strokeStyle = '#ff3344';
+            ctx.setLineDash([2, 2]); ctx.lineWidth = 1.2;
+            ctx.beginPath(); ctx.arc(0, 0, e.r, 0, Math.PI * 2); ctx.stroke();
+            ctx.fillStyle = '#ff6677'; ctx.font = '9px monospace';
+            ctx.fillText(`R=${e.r}`, -10, -e.r - 3);
+            ctx.restore();
+          }
+        });
+
+        // Хранитель
+        ctx.save();
+        ctx.translate(hero.x, hero.y);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.beginPath(); ctx.ellipse(0, 2, 16, 12, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.rotate(hero.angle);
+        drawHeroCustodian(ctx, t, hero.moving, false);
+        ctx.restore();
+
+        // Хитбокс героя
+        if (showHitboxes) {
+          ctx.save();
+          ctx.translate(hero.x, hero.y);
+          ctx.strokeStyle = '#00f0ff';
+          ctx.setLineDash([3, 3]); ctx.lineWidth = 1.4;
+          ctx.beginPath(); ctx.arc(0, 0, hero.r, 0, Math.PI * 2); ctx.stroke();
+          ctx.fillStyle = '#00f0ff'; ctx.font = '9px monospace';
+          ctx.fillText(`HERO R=${hero.r}`, -18, -hero.r - 4);
+          ctx.restore();
+        }
+
+      } else {
+        // РЕЖИМ 1-3: КРУПНЫЙ ПЛАН (INSPECTION CLOSE-UP С МАСШТАБОМ x3)
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        const dummyE = { hitFlash: 0, seed: 1.5 };
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.scale(3, 3); // Увеличение в 3 раза для рассмотрения каждой детали
+
+        // Вращение для осмотра
+        ctx.rotate(t * 0.5);
+
+        if (inspectMode === 1) {
+          EnemyRenderers.drawSprout(ctx, t, dummyE);
+          if (showHitboxes) {
+            ctx.strokeStyle = '#ff3344'; ctx.lineWidth = 1; ctx.setLineDash([2, 2]);
+            ctx.beginPath(); ctx.arc(0, 0, 13, 0, Math.PI * 2); ctx.stroke();
+          }
+        } else if (inspectMode === 2) {
+          EnemyRenderers.drawStalker(ctx, t, dummyE);
+          if (showHitboxes) {
+            ctx.strokeStyle = '#ff3344'; ctx.lineWidth = 1; ctx.setLineDash([2, 2]);
+            ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI * 2); ctx.stroke();
+          }
+        } else if (inspectMode === 3) {
+          EnemyRenderers.drawDasher(ctx, t, dummyE);
+          if (showHitboxes) {
+            ctx.strokeStyle = '#ff3344'; ctx.lineWidth = 1; ctx.setLineDash([2, 2]);
+            ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI * 2); ctx.stroke();
+          }
+        }
+
+        ctx.restore();
+      }
+
+      // Прицел
+      ctx.strokeStyle = '#00f0ff';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 5, 0, Math.PI * 2); ctx.stroke();
+
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Custodian</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div id="gameContainer">
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Telemetry HUD (` or F2) -->
+    <div id="debugHUD" class="hidden">
+      <div class="hud-header">
+        <span>TELEMETRY & BALANCE MONITOR</span>
+        <span class="hud-key-hint">[Press ` or F2 to Close]</span>
+      </div>
+      <div id="hudContent"></div>
+      <div class="hud-actions">
+        <button id="btnCopyJSON">Copy Run Log (JSON)</button>
+        <button id="btnResetTelemetry">Reset Metrics</button>
+      </div>
+    </div>
+  </div>
+
+    <script src="js/config.js"></script>
+  <script src="js/telemetry.js"></script>
+    <script src="js/decals.js"></script>
+  <script src="js/gibs.js"></script>
+  <script src="js/weapons.js"></script>
+  <script src="js/pickups.js"></script>
+  <script src="js/enemies.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
