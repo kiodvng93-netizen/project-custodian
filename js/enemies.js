@@ -64,6 +64,8 @@ class Enemy {
     this.currentSlow = 1.0;
     this.sporeSlowTimer = 0;
     this.sporeSlowMult = 1.0;
+    this.plasmaBurnTimer = 0;
+    this.plasmaBurnDmg = 0;
 
     this.isAwakened = false;
     this.chargeCooldown = 4.5;
@@ -141,19 +143,19 @@ class Enemy {
         window.Telemetry.recordEvent('KILL', `${this.name} destroyed!`);
       }
 
-            if (this.typeKey === 'warden') {
+      if (this.typeKey === 'warden') {
         if (window.spawnShockwave) {
           window.spawnShockwave(this.x, this.y, { radius: 25, maxRadius: 280, color: '#f687b3', speed: 420, lineWidth: 9 });
         }
-        if (window.camera) window.camera.addTrauma(1.0);
-        if (window.triggerHitStop) window.triggerHitStop(0.12);
+        if (window.camera) window.camera.addTrauma(window.CONFIG.JUICE.trauma.wardenKill);
+        if (window.triggerHitStop) window.triggerHitStop(window.CONFIG.JUICE.hitStop.wardenKill);
         if (window.worldManager) window.worldManager.spawnCore(this.x, this.y);
       } else if (this.typeKey === 'stalker') {
         if (window.spawnShockwave) {
           window.spawnShockwave(this.x, this.y, { radius: 10, maxRadius: 75, color: '#fc8181', speed: 280, lineWidth: 3.5 });
         }
-        if (window.camera) window.camera.addTrauma(0.22);
-        if (window.triggerHitStop) window.triggerHitStop(0.024);
+        if (window.camera) window.camera.addTrauma(window.CONFIG.JUICE.trauma.stalkerKill);
+        if (window.triggerHitStop) window.triggerHitStop(window.CONFIG.JUICE.hitStop.stalkerKill);
       }
 
       if (window.pickupManager) {
@@ -165,6 +167,7 @@ class Enemy {
   update(dt, player, enemies) {
     if (!this.alive) return;
 
+    // Очищенная зона вокруг монумента уничтожает мобов
     if (window.worldManager && window.worldManager.landmark && window.worldManager.landmark.repaired) {
       const lm = window.worldManager.landmark;
       if (Math.hypot(this.x - lm.x, this.y - lm.y) < window.CONFIG.WORLD.terraformedRadius) {
@@ -176,6 +179,13 @@ class Enemy {
     const dx = player.x - this.x;
     const dy = player.y - this.y;
     const distSq = dx * dx + dy * dy;
+
+    // FIX БАГА #8: тики горения работают для ВСЕХ типов врагов (включая Warden)
+    if (this.plasmaBurnTimer > 0) {
+      this.plasmaBurnTimer -= dt;
+      this.takeDamage((this.plasmaBurnDmg || 8) * dt);
+      if (!this.alive) return;
+    }
 
     if (this.typeKey === 'warden') {
       const dist = Math.sqrt(distSq);
@@ -189,7 +199,7 @@ class Enemy {
       let vx = (dx / dist) * effectiveSpeed;
       let vy = (dy / dist) * effectiveSpeed;
 
-            const neighbors = (window.enemyManager && window.enemyManager.grid)
+      const neighbors = (window.enemyManager && window.enemyManager.grid)
         ? window.enemyManager.grid.getNearby(this.x, this.y, this.radius * 2.5)
         : enemies;
 
@@ -218,11 +228,6 @@ class Enemy {
     const touchDist = this.radius + player.radius;
     if (distSq < touchDist * touchDist) {
       player.takeDamage(this.damage);
-    }
-
-    if (this.plasmaBurnTimer && this.plasmaBurnTimer > 0) {
-      this.plasmaBurnTimer -= dt;
-      this.takeDamage((this.plasmaBurnDmg || 8) * dt);
     }
 
     if (this.hitFlashTimer > 0) this.hitFlashTimer -= dt;
@@ -360,7 +365,7 @@ class Enemy {
 }
 
 class EnemyManager {
-    constructor() {
+  constructor() {
     this.enemies = [];
     this.grid = new SpatialGrid(140);
     this.spawnTimer = 0;
@@ -386,7 +391,7 @@ class EnemyManager {
     this.enemies.push(new Enemy(pos.x, pos.y, 'warden'));
   }
 
-    update(dt, player, camera, canvasWidth, canvasHeight, activeNestsCount = 7) {
+  update(dt, player, camera, canvasWidth, canvasHeight, activeNestsCount = 7) {
     this.grid.clear();
     const eLen = this.enemies.length;
     for (let i = 0; i < eLen; i++) {

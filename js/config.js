@@ -1,4 +1,6 @@
-window.CONFIG = {
+// js/config.js — Базовый баланс и настройки (ES Module)
+
+export const CONFIG = {
   ENGINE: {
     targetFPS: 60,
     maxDeltaTime: 0.1,
@@ -32,7 +34,6 @@ window.CONFIG = {
     pushbackRadius: 85,
     pushbackForce: 220,
 
-    // Механика рывка (Overdrive Dash)
     DASH: {
       speed: 740,
       duration: 0.22,
@@ -41,7 +42,6 @@ window.CONFIG = {
       shockwaveRadius: 55,
     },
 
-    // Круиз-контроль для дальних переходов
     CRUISE: {
       activationTime: 2.2,
       speedMultiplier: 1.45,
@@ -342,7 +342,8 @@ window.CONFIG = {
   }
 };
 
-const defaultSave = {
+const DEFAULT_META_SAVE = {
+  version: 1,
   bankedTechScrap: 0,
   perks: {
     chassisArmor: 0,
@@ -352,15 +353,38 @@ const defaultSave = {
   }
 };
 
-try {
-  const loaded = localStorage.getItem('custodian_meta_save');
-  window.MetaProgression = loaded ? JSON.parse(loaded) : defaultSave;
-} catch (e) {
-  window.MetaProgression = defaultSave;
+export function loadMetaProgression() {
+  try {
+    const raw = localStorage.getItem('custodian_meta_save');
+    if (!raw) return JSON.parse(JSON.stringify(DEFAULT_META_SAVE));
+    const parsed = JSON.parse(raw);
+    return {
+      version: 1,
+      bankedTechScrap: Number(parsed.bankedTechScrap) || 0,
+      perks: {
+        chassisArmor: Number(parsed.perks && parsed.perks.chassisArmor) || 0,
+        engineSpeed: Number(parsed.perks && parsed.perks.engineSpeed) || 0,
+        shieldCapacitor: Number(parsed.perks && parsed.perks.shieldCapacitor) || 0,
+        naniteScavenge: Number(parsed.perks && parsed.perks.naniteScavenge) || 0
+      }
+    };
+  } catch (e) {
+    console.warn('[CONFIG] Corrupted save, using defaults', e);
+    return JSON.parse(JSON.stringify(DEFAULT_META_SAVE));
+  }
 }
 
-window.saveMetaProgression = () => {
+export const MetaProgression = loadMetaProgression();
+
+export function saveMetaProgression() {
   try {
-    localStorage.setItem('custodian_meta_save', JSON.stringify(window.MetaProgression));
-  } catch (e) {}
-};
+    localStorage.setItem('custodian_meta_save', JSON.stringify(MetaProgression));
+  } catch (e) {
+    console.error('[CONFIG] Failed to save meta-progression', e);
+  }
+}
+
+// Переходные шимы для совместимости
+window.CONFIG = CONFIG;
+window.MetaProgression = MetaProgression;
+window.saveMetaProgression = saveMetaProgression;

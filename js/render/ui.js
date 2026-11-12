@@ -1,0 +1,304 @@
+// js/render/ui.js — Отрисовка всех экранов интерфейса, HUD и меню
+
+import { CONFIG, MetaProgression } from '../config.js';
+
+export function renderPlayerVitalsHUD(ctx, canvas, state) {
+  const panelW = 210;
+  const panelH = 76;
+  const panelX = canvas.width - panelW - 16;
+  const panelY = 16;
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(13, 16, 23, 0.88)';
+  ctx.strokeStyle = '#2d3748';
+  ctx.lineWidth = 1.5;
+  ctx.fillRect(panelX, panelY, panelW, panelH);
+  ctx.strokeRect(panelX, panelY, panelW, panelH);
+
+  ctx.fillStyle = '#a0aec0';
+  ctx.font = 'bold 11px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('HULL INTEGRITY', panelX + 10, panelY + 16);
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#fc8181';
+  ctx.fillText(`💀 ${window.Telemetry ? window.Telemetry.metrics.kills : 0}`, panelX + panelW - 10, panelY + 16);
+
+  const barX = panelX + 10;
+  const barY = panelY + 23;
+  const barW = panelW - 20;
+  const barH = 14;
+
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.fillRect(barX, barY, barW, barH);
+
+  const hpRatio = Math.max(0, Math.min(1, state.player.health / state.player.maxHealth));
+  ctx.fillStyle = hpRatio > 0.4 ? '#48bb78' : '#e53e3e';
+  ctx.fillRect(barX, barY, barW * hpRatio, barH);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 10px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${Math.round(state.player.health)} / ${Math.round(state.player.maxHealth)}`, barX + barW / 2, barY + 11);
+
+  const shieldY = panelY + 44;
+  ctx.fillStyle = '#a0aec0';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('AEGIS SHIELD:', barX, shieldY + 14);
+
+  const shieldStartX = barX + 85;
+  for (let i = 0; i < state.player.maxShieldCharges; i++) {
+    const isCharged = i < state.player.shieldCharges;
+    ctx.fillStyle = isCharged ? '#4299e1' : '#2d3748';
+    ctx.strokeStyle = isCharged ? '#bee3f8' : '#4a5568';
+    ctx.lineWidth = 1;
+    ctx.fillRect(shieldStartX + i * 14, shieldY + 3, 11, 13);
+    ctx.strokeRect(shieldStartX + i * 14, shieldY + 3, 11, 13);
+  }
+
+  if (state.player.shieldCharges < state.player.maxShieldCharges) {
+    const rechargeRatio = state.player.shieldTimer / state.player.shieldRechargeTime;
+    ctx.fillStyle = '#63b3ed';
+    ctx.fillRect(shieldStartX + state.player.shieldCharges * 14, shieldY + 14, 11 * rechargeRatio, 2);
+  }
+
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#68d391';
+  ctx.font = '10px monospace';
+  ctx.fillText(`+${state.player.healthRegenRate.toFixed(1)}/s`, panelX + panelW - 10, shieldY + 14);
+  ctx.restore();
+}
+
+export function renderArsenalHUD(ctx, canvas, state) {
+  const slots = state.weaponManager.slots;
+  const maxSlots = state.weaponManager.maxSlots;
+  const slotW = 105;
+  const slotH = 46;
+  const gap = 8;
+  const totalW = maxSlots * slotW + (maxSlots - 1) * gap;
+  const startX = (canvas.width - totalW) / 2;
+  const startY = canvas.height - slotH - 12;
+
+  ctx.save();
+  for (let i = 0; i < maxSlots; i++) {
+    const x = startX + i * (slotW + gap);
+    const y = startY;
+    const wpn = slots[i];
+
+    if (wpn) {
+      const isEvo = !!wpn.isEvolution;
+      ctx.fillStyle = isEvo ? 'rgba(28, 40, 38, 0.92)' : 'rgba(18, 22, 31, 0.88)';
+      ctx.strokeStyle = isEvo ? '#ecc94b' : '#4a5568';
+      ctx.lineWidth = isEvo ? 2 : 1;
+      ctx.fillRect(x, y, slotW, slotH);
+      ctx.strokeRect(x, y, slotW, slotH);
+
+      ctx.fillStyle = isEvo ? '#f6e05e' : '#63b3ed';
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'left';
+      const title = (isEvo ? '★ ' : '') + wpn.name;
+      ctx.fillText(title.length > 13 ? title.slice(0, 12) + '…' : title, x + 6, y + 14);
+
+      ctx.fillStyle = '#cbd5e0';
+      ctx.font = '9px monospace';
+      let statLine1 = '';
+      let statLine2 = '';
+
+      if (wpn.cfg) {
+        const dmg = wpn.cfg.damage || wpn.cfg.impactDamage || wpn.cfg.zoneDamage || 0;
+        statLine1 = `DMG: ${Math.round(dmg)}`;
+        if (wpn.cfg.fireRate) statLine2 = `RATE: ${wpn.cfg.fireRate.toFixed(2)}s`;
+        else if (wpn.cfg.cooldown) statLine2 = `CD: ${wpn.cfg.cooldown.toFixed(2)}s`;
+        else if (wpn.cfg.bladeCount) statLine2 = `BLADES: ${wpn.cfg.bladeCount}`;
+        else if (wpn.cfg.droneCount) statLine2 = `DRONES: ${wpn.cfg.droneCount}`;
+      }
+
+      ctx.fillText(statLine1, x + 6, y + 27);
+      if (statLine2) ctx.fillText(statLine2, x + 6, y + 38);
+    } else {
+      ctx.fillStyle = 'rgba(13, 16, 23, 0.55)';
+      ctx.strokeStyle = 'rgba(74, 85, 104, 0.45)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.fillRect(x, y, slotW, slotH);
+      ctx.strokeRect(x, y, slotW, slotH);
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = 'rgba(113, 128, 150, 0.6)';
+      ctx.font = '9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`SLOT ${i + 1}`, x + slotW / 2, y + 20);
+      ctx.fillText('[EMPTY]', x + slotW / 2, y + 33);
+    }
+  }
+  ctx.restore();
+}
+
+export function renderXPBar(ctx, canvas, state) {
+  const barWidth = canvas.width * 0.5;
+  const barHeight = 8;
+  const barX = (canvas.width - barWidth) / 2;
+  const barY = 16;
+
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.fillRect(barX - 2, barY - 2, barWidth + 4, barHeight + 4);
+
+  const xpRatio = Math.min(1, state.player.xp / state.player.xpToNext);
+  ctx.fillStyle = '#48bb78';
+  ctx.fillRect(barX, barY, barWidth * xpRatio, barHeight);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 12px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(`LVL ${state.player.level} [${state.player.xp} / ${state.player.xpToNext} ESSENCE]`, canvas.width / 2, barY + 24);
+}
+
+export function renderDraftOverlay(ctx, canvas, state) {
+  ctx.fillStyle = 'rgba(5, 7, 12, 0.75)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#48bb78';
+  ctx.font = 'bold 22px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('CHASSIS UPGRADE AVAILABLE (BULLET TIME)', canvas.width / 2, canvas.height / 2 - 110);
+  ctx.font = '13px monospace';
+  ctx.fillStyle = '#a0aec0';
+  ctx.fillText('Select with Click or Press [1], [2], or [3]', canvas.width / 2, canvas.height / 2 - 85);
+
+  const cw = 220, ch = 140, gap = 20;
+  const totalW = (cw * 3) + (gap * 2);
+  const startX = (canvas.width - totalW) / 2;
+  const cardY = canvas.height / 2 - ch / 2;
+
+  for (let i = 0; i < state.draftCards.length; i++) {
+    const card = state.draftCards[i];
+    const cardX = startX + i * (cw + gap);
+    const isEvo = card.isEvolutionCard;
+
+    ctx.fillStyle = isEvo ? '#1c2826' : '#1a202c';
+    ctx.strokeStyle = isEvo ? '#ecc94b' : '#4299e1';
+    ctx.lineWidth = isEvo ? 3 : 2;
+    ctx.fillRect(cardX, cardY, cw, ch);
+    ctx.strokeRect(cardX, cardY, cw, ch);
+
+    ctx.fillStyle = isEvo ? '#f6e05e' : '#63b3ed';
+    ctx.font = isEvo ? 'bold 13px monospace' : 'bold 14px monospace';
+    ctx.fillText(`[${i + 1}] ${card.title}`, cardX + cw / 2, cardY + 32);
+
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '11px monospace';
+    ctx.fillText(card.desc, cardX + cw / 2, cardY + 75);
+  }
+}
+
+export function renderWorkshopOverlay(ctx, canvas, perks) {
+  ctx.fillStyle = 'rgba(5, 7, 12, 0.85)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#ecc94b';
+  ctx.font = 'bold 22px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('SANCTUARY WORKSHOP (PERMANENT UPGRADES)', canvas.width / 2, canvas.height / 2 - 180);
+
+  ctx.fillStyle = '#a0aec0';
+  ctx.font = '13px monospace';
+  ctx.fillText(`AVAILABLE VAULT SCRAP: ${MetaProgression.bankedTechScrap} | Press [B] to Close`, canvas.width / 2, canvas.height / 2 - 150);
+
+  const pw = 420, ph = 70, gap = 14;
+  const startX = canvas.width / 2 - pw / 2;
+  const startY = canvas.height / 2 - 130;
+
+  for (let i = 0; i < perks.length; i++) {
+    const perk = perks[i];
+    const py = startY + i * (ph + gap);
+    const rank = MetaProgression.perks[perk.key] || 0;
+    const cost = perk.costBase + (rank * perk.costScale);
+    const canAfford = MetaProgression.bankedTechScrap >= cost;
+
+    ctx.fillStyle = canAfford ? '#1a202c' : '#12161f';
+    ctx.strokeStyle = canAfford ? '#ecc94b' : '#4a5568';
+    ctx.lineWidth = 1.5;
+    ctx.fillRect(startX, py, pw, ph);
+    ctx.strokeRect(startX, py, pw, ph);
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = canAfford ? '#f6e05e' : '#a0aec0';
+    ctx.font = 'bold 14px monospace';
+    ctx.fillText(`${perk.title} [RANK ${rank}]`, startX + 16, py + 26);
+
+    ctx.fillStyle = '#cbd5e0';
+    ctx.font = '11px monospace';
+    ctx.fillText(perk.desc, startX + 16, py + 50);
+
+    ctx.textAlign = 'right';
+    ctx.fillStyle = canAfford ? '#48bb78' : '#e53e3e';
+    ctx.font = 'bold 13px monospace';
+    ctx.fillText(`COST: ${cost} SCRAP`, startX + pw - 16, py + 38);
+  }
+}
+
+export function renderPauseMenu(ctx, canvas) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(5, 7, 12, 0.75)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#63b3ed';
+  ctx.font = 'bold 24px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('SYSTEM PAUSED', canvas.width / 2, canvas.height / 2 - 90);
+
+  ctx.fillStyle = '#a0aec0';
+  ctx.font = '12px monospace';
+  ctx.fillText('Press [ESC] or [P] to Return', canvas.width / 2, canvas.height / 2 - 60);
+
+  const mw = 260, mh = 44;
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+
+  ctx.fillStyle = '#1a202c';
+  ctx.strokeStyle = '#48bb78';
+  ctx.lineWidth = 2;
+  ctx.fillRect(cx - mw / 2, cy - 30, mw, mh);
+  ctx.strokeRect(cx - mw / 2, cy - 30, mw, mh);
+
+  ctx.fillStyle = '#48bb78';
+  ctx.font = 'bold 14px monospace';
+  ctx.fillText('RESUME MISSION', cx, cy - 3);
+
+  ctx.fillStyle = '#1a202c';
+  ctx.strokeStyle = '#e53e3e';
+  ctx.lineWidth = 2;
+  ctx.fillRect(cx - mw / 2, cy + 26, mw, mh);
+  ctx.strokeRect(cx - mw / 2, cy + 26, mw, mh);
+
+  ctx.fillStyle = '#fc8181';
+  ctx.fillText('ABORT RUN (RESTART)', cx, cy + 53);
+  ctx.restore();
+}
+
+export function renderLandmarkTerminalHUD(ctx, canvas, state) {
+  if (!state.worldManager || !state.worldManager.landmark || !state.worldManager.landmark.repaired) return;
+
+  const distToLm = Math.hypot(state.player.x - state.worldManager.landmark.x, state.player.y - state.worldManager.landmark.y);
+  if (distToLm < CONFIG.WORLD.terraformedRadius) {
+    ctx.fillStyle = 'rgba(13, 16, 23, 0.85)';
+    ctx.fillRect(canvas.width / 2 - 230, canvas.height - 120, 460, 60);
+    ctx.strokeStyle = '#48bb78';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(canvas.width / 2 - 230, canvas.height - 120, 460, 60);
+
+    ctx.textAlign = 'center';
+    if (state.worldManager.transferActive) {
+      ctx.fillStyle = '#fc8181';
+      ctx.font = 'bold 15px monospace';
+      ctx.fillText(`TRANSFER ACTIVE: ${Math.ceil(state.worldManager.transferTimer)}s REMAINING!`, canvas.width / 2, canvas.height - 85);
+    } else {
+      ctx.fillStyle = '#ecc94b';
+      ctx.font = 'bold 13px monospace';
+      ctx.fillText('[E] START 25s SCRAP TRANSFER (100% SECURED)', canvas.width / 2, canvas.height - 95);
+      ctx.fillStyle = '#63b3ed';
+      ctx.fillText('[F] FAST TRAVEL TO HUB (DISTANCE TAX)', canvas.width / 2, canvas.height - 75);
+    }
+  }
+}

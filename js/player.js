@@ -8,15 +8,24 @@ class Player {
     this.growthScale = 1.0;
     this.facingAngle = 0;
 
-    this.applyMetaUpgrades();
+    // Первичная инициализация статов
+    this.speed = window.CONFIG.PLAYER.baseSpeed;
+    this.maxHealth = window.CONFIG.PLAYER.baseHealth;
+    this.health = this.maxHealth;
+    this.maxShieldCharges = window.CONFIG.PLAYER.baseShieldCharges;
+    this.shieldCharges = this.maxShieldCharges;
+    this.shieldTimer = 0;
+    this.shieldRechargeTime = window.CONFIG.PLAYER.shieldRechargeTime;
+
+    this.applyMetaUpgrades(true); // true = полная инициализация старта
 
     this.invulnerableTimer = 0;
     this.healthRegenRate = 0.5;
     this.carryingCore = false;
     this.godMode = false;
 
-    // Механика рывка (Overdrive Dash)
-    const dashCfg = (window.CONFIG && window.CONFIG.PLAYER && window.CONFIG.PLAYER.DASH) || { speed: 740, duration: 0.22, cooldown: 2.2, iFrames: 0.28 };
+    // Overdrive Dash
+    const dashCfg = window.CONFIG.PLAYER.DASH;
     this.dashCooldown = dashCfg.cooldown;
     this.dashTimer = 0;
     this.isDashing = false;
@@ -29,7 +38,7 @@ class Player {
     this.afterimages = [];
 
     // Круиз-контроль
-    const cruiseCfg = (window.CONFIG && window.CONFIG.PLAYER && window.CONFIG.PLAYER.CRUISE) || { activationTime: 2.2, speedMultiplier: 1.45 };
+    const cruiseCfg = window.CONFIG.PLAYER.CRUISE;
     this.cruiseActivationTime = cruiseCfg.activationTime;
     this.cruiseSpeedMultiplier = cruiseCfg.speedMultiplier;
     this.cruiseTimer = 0;
@@ -43,15 +52,29 @@ class Player {
     this.bindInputs();
   }
 
-  applyMetaUpgrades() {
-    const perks = (window.MetaProgression && window.MetaProgression.perks) ? window.MetaProgression.perks : { chassisArmor: 0, engineSpeed: 0, shieldCapacitor: 0 };
+  // FIX БАГА #1: при покупке в хабе сохраняем текущее HP и заряд щита
+  applyMetaUpgrades(isFirstSpawn = false) {
+    const perks = (window.MetaProgression && window.MetaProgression.perks) || {
+      chassisArmor: 0,
+      engineSpeed: 0,
+      shieldCapacitor: 0
+    };
+
+    const prevMaxHp = this.maxHealth || window.CONFIG.PLAYER.baseHealth;
+    const hpRatio = isFirstSpawn ? 1.0 : (this.health / prevMaxHp);
 
     this.speed = window.CONFIG.PLAYER.baseSpeed + (perks.engineSpeed * 8);
     this.maxHealth = window.CONFIG.PLAYER.baseHealth + (perks.chassisArmor * 15);
-    this.health = this.maxHealth;
+    this.health = isFirstSpawn ? this.maxHealth : Math.min(this.maxHealth, this.maxHealth * hpRatio);
+
     this.maxShieldCharges = window.CONFIG.PLAYER.baseShieldCharges;
-    this.shieldCharges = this.maxShieldCharges;
-    this.shieldTimer = 0;
+    if (isFirstSpawn) {
+      this.shieldCharges = this.maxShieldCharges;
+      this.shieldTimer = 0;
+    } else {
+      this.shieldCharges = Math.min(this.shieldCharges, this.maxShieldCharges);
+    }
+
     this.shieldRechargeTime = Math.max(12.0, window.CONFIG.PLAYER.shieldRechargeTime - (perks.shieldCapacitor * 2.0));
   }
 
@@ -98,10 +121,10 @@ class Player {
     this.dashDirY = dy;
     this.invulnerableTimer = Math.max(this.invulnerableTimer, this.dashIFrames);
 
-    const traumaVal = (window.CONFIG && window.CONFIG.JUICE && window.CONFIG.JUICE.trauma && window.CONFIG.JUICE.trauma.dash) || 0.20;
+    const traumaVal = window.CONFIG.JUICE.trauma.dash || 0.20;
     if (window.camera) window.camera.addTrauma(traumaVal);
     if (window.spawnShockwave) {
-      const swR = (window.CONFIG && window.CONFIG.PLAYER && window.CONFIG.PLAYER.DASH && window.CONFIG.PLAYER.DASH.shockwaveRadius) || 55;
+      const swR = window.CONFIG.PLAYER.DASH.shockwaveRadius || 55;
       window.spawnShockwave(this.x, this.y, { radius: 8, maxRadius: swR, color: '#63b3ed', speed: 280, lineWidth: 3.5 });
     }
   }
@@ -123,12 +146,11 @@ class Player {
   }
 
   takeDamage(amount = 20) {
-    if (this.godMode) return;
-    if (this.invulnerableTimer > 0) return;
+    if (this.godMode || this.invulnerableTimer > 0) return;
 
     if (this.shieldCharges > 0) {
       this.shieldCharges--;
-      this.invulnerableTimer = 0.7;
+      this.invulnerableTimer = window.CONFIG.PLAYER.invulnOnShieldBreak;
       this.shieldTimer = 0;
       window.Telemetry.metrics.shieldHitsAbsorbed++;
       this.pushCrowdBack(80, 160);
@@ -136,22 +158,20 @@ class Player {
       if (window.spawnShockwave) {
         window.spawnShockwave(this.x, this.y, { radius: 15, maxRadius: 150, color: '#4299e1', speed: 420, lineWidth: 6 });
       }
-      if (window.camera) window.camera.addTrauma(0.48);
-      if (window.triggerHitStop) window.triggerHitStop(0.04);
+      if (window.camera) window.camera.addTrauma(window.CONFIG.JUICE.trauma.shieldBreak);
+      if (window.triggerHitStop) window.triggerHitStop(window.CONFIG.JUICE.hitStop.shieldBreak);
       return;
     }
 
     this.health = Math.max(0, this.health - amount);
-    this.invulnerableTimer = 0.65;
+    this.invulnerableTimer = window.CONFIG.PLAYER.invulnOnDamage;
     window.Telemetry.metrics.damageTaken += amount;
-    this.pushCrowdBack(85, 220);
+    this.pushCrowdBack(window.CONFIG.PLAYER.pushbackRadius, window.CONFIG.PLAYER.pushbackForce);
 
-    if (window.camera) window.camera.addTrauma(0.75);
-    if (window.triggerHitStop) window.triggerHitStop(0.06);
+    if (window.camera) window.camera.addTrauma(window.CONFIG.JUICE.trauma.playerHit);
+    if (window.triggerHitStop) window.triggerHitStop(window.CONFIG.JUICE.hitStop.playerHit);
 
     if (this.health <= 0) {
-      if (window.camera) window.camera.addTrauma(0.95);
-      if (window.triggerHitStop) window.triggerHitStop(0.12);
       this.die();
     }
   }
@@ -199,7 +219,7 @@ class Player {
     this.xpToNext = 4;
     this.growthScale = 1.0;
     this.radius = 18;
-    this.applyMetaUpgrades();
+    this.applyMetaUpgrades(true);
     this.healthRegenRate = 0.5;
     this.carryingCore = false;
     this.invulnerableTimer = 1.5;
@@ -285,7 +305,6 @@ class Player {
   }
 
   render(ctx) {
-    // Призрачные следы рывка
     for (const ghost of this.afterimages) {
       ctx.save();
       ctx.translate(ghost.x, ghost.y);
@@ -329,14 +348,13 @@ class Player {
       ctx.stroke();
     }
 
-    // Попытка отрисовать пиксельный спрайт робота
     let renderedSprite = false;
     if (window.spriteManager) {
       renderedSprite = window.spriteManager.drawRobot(ctx, this, performance.now() / 1000);
     }
 
-    // Резервная векторная отрисовка (если спрайт еще не загрузился)
     if (!renderedSprite) {
+      ctx.save();
       ctx.rotate(this.facingAngle);
       ctx.fillStyle = this.godMode ? '#d69e2e' : '#2b6cb0';
       ctx.strokeStyle = this.godMode ? '#fff' : '#e2e8f0';
@@ -361,14 +379,20 @@ class Player {
       ctx.beginPath();
       ctx.arc(0, 0, 5 * this.growthScale, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
     }
 
-    // Пламя турбин круиз-контроля
+    // FIX БАГА #12: пламя круиз-контроля направляется сзади угла движения
     if (this.isCruising) {
+      ctx.save();
+      const flameDist = this.radius * 0.9;
+      const flameX = -Math.cos(this.facingAngle) * flameDist;
+      const flameY = -Math.sin(this.facingAngle) * flameDist;
       ctx.fillStyle = Math.random() > 0.5 ? '#f6ad55' : '#ed8936';
       ctx.beginPath();
-      ctx.arc(-this.radius * 0.9, 0, 5 + Math.random() * 4, 0, Math.PI * 2);
+      ctx.arc(flameX, flameY, 5 + Math.random() * 4, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
     }
 
     ctx.restore();
