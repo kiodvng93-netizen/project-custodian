@@ -95,6 +95,7 @@ window.triggerHitStop = (duration) => {
 };
 
 const player = new window.Player(0, 0);
+let spriteManager = new window.SpriteManager();
 let decalManager = new window.DecalManager();
 let gibManager = new window.GibManager();
 let weaponManager = new window.WeaponManager(player);
@@ -104,6 +105,7 @@ let worldManager = new window.WorldManager();
 let damageTexts = [];
 
 window.player = player;
+window.spriteManager = spriteManager;
 window.decalManager = decalManager;
 window.gibManager = gibManager;
 window.pickupManager = pickupManager;
@@ -143,7 +145,7 @@ window.triggerFullRunRestart = () => {
   window.worldManager = worldManager;
   window.damageTexts = damageTexts;
 
-    camera.x = 0;
+  camera.x = 0;
   camera.y = 0;
   camera.trauma = 0;
   hitStopTimer = 0;
@@ -433,7 +435,7 @@ window.addEventListener('keydown', (e) => {
     }
   }
 
-    if (e.code === 'KeyK') player.takeDamage(25);
+  if (e.code === 'KeyK') player.takeDamage(25);
   if (e.code === 'KeyH') player.heal(20);
 
   if (e.code === 'KeyT') {
@@ -445,7 +447,7 @@ window.addEventListener('keydown', (e) => {
     }
   }
 
-    if (worldManager && worldManager.landmark && worldManager.landmark.repaired) {
+  if (worldManager && worldManager.landmark && worldManager.landmark.repaired) {
     const distToLm = Math.hypot(player.x - worldManager.landmark.x, player.y - worldManager.landmark.y);
     if (distToLm < window.CONFIG.WORLD.terraformedRadius) {
       if (e.code === 'KeyE') {
@@ -457,7 +459,6 @@ window.addEventListener('keydown', (e) => {
     }
   }
 
-  // Открытие сундуков с припасами по клавише [E]
   if (e.code === 'KeyE' && worldManager && worldManager.chests) {
     for (const chest of worldManager.chests) {
       if (!chest.opened && Math.hypot(player.x - chest.x, player.y - chest.y) < 65) {
@@ -544,7 +545,7 @@ function renderFrame() {
   renderSanctuaryHub();
   worldManager.render(ctx);
   pickupManager.render(ctx);
-    if (gibManager) {
+  if (gibManager) {
     gibManager.render(ctx);
   }
   for (const sw of shockwaves) {
@@ -606,7 +607,131 @@ function renderFrame() {
 
   ctx.fillStyle = 'rgba(160, 174, 192, 0.85)';
   ctx.font = '12px monospace';
-      ctx.fillText(`Horde: ${enemyManager.enemies.length}/400 | Weapons: ${weaponManager.slots.length}/6 | [SPACE] Dash | [T] Stress | [ESC] Pause`, 16, canvas.height - 18);
+  ctx.fillText(`Horde: ${enemyManager.enemies.length}/400 | Weapons: ${weaponManager.slots.length}/6 | [SPACE] Dash | [T] Stress | [ESC] Pause`, 16, canvas.height - 18);
+}
+
+function renderWorldGrid() {
+  const viewLeft = camera.x - canvas.width / 2 - 100;
+  const viewRight = camera.x + canvas.width / 2 + 100;
+  const viewTop = camera.y - canvas.height / 2 - 100;
+  const viewBottom = camera.y + canvas.height / 2 + 100;
+  const w = viewRight - viewLeft;
+  const h = viewBottom - viewTop;
+
+  let drawn = false;
+  if (window.spriteManager) {
+    try {
+      const pattern = window.spriteManager.getPattern(ctx, 'tile_wasteland');
+      if (pattern) {
+        ctx.fillStyle = pattern;
+        ctx.fillRect(viewLeft, viewTop, w, h);
+        drawn = true;
+      }
+    } catch (e) {}
+  }
+
+  if (!drawn) {
+    // Надежный красивый процедурный пол вместо глухой пустоты
+    ctx.fillStyle = '#12151c';
+    ctx.fillRect(viewLeft, viewTop, w, h);
+
+    const gridSize = 64;
+    ctx.strokeStyle = 'rgba(45, 55, 72, 0.4)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = Math.floor(viewLeft / gridSize) * gridSize; x <= viewRight; x += gridSize) {
+      ctx.moveTo(x, viewTop); ctx.lineTo(x, viewBottom);
+    }
+    for (let y = Math.floor(viewTop / gridSize) * gridSize; y <= viewBottom; y += gridSize) {
+      ctx.moveTo(viewLeft, y); ctx.lineTo(viewRight, y);
+    }
+    ctx.stroke();
+  }
+
+  ctx.strokeStyle = 'rgba(237, 137, 54, 0.55)';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([16, 16]);
+  ctx.beginPath();
+  ctx.arc(0, 0, window.CONFIG.WORLD.ring1Radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function renderSanctuaryHub() {
+  ctx.save();
+  let drawn = false;
+  if (window.spriteManager) {
+    try {
+      const hubPattern = window.spriteManager.getPattern(ctx, 'tile_hub');
+      if (hubPattern) {
+        ctx.fillStyle = hubPattern;
+        ctx.beginPath();
+        ctx.arc(0, 0, 180, 0, Math.PI * 2);
+        ctx.fill();
+        drawn = true;
+      }
+    } catch (e) {}
+  }
+
+  if (!drawn) {
+    ctx.fillStyle = 'rgba(72, 187, 120, 0.15)';
+    ctx.beginPath();
+    ctx.arc(0, 0, 180, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.strokeStyle = '#48bb78';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.fillStyle = '#48bb78';
+  ctx.beginPath();
+  ctx.arc(0, 0, 16, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#a0aec0';
+  ctx.font = 'bold 12px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('SANCTUARY GATE (0, 0)', 0, 36);
+  ctx.restore();
+}
+
+function renderDraftOverlay() {
+  ctx.fillStyle = 'rgba(5, 7, 12, 0.75)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = '#48bb78';
+  ctx.font = 'bold 22px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('CHASSIS UPGRADE AVAILABLE (BULLET TIME)', canvas.width / 2, canvas.height / 2 - 110);
+  ctx.font = '13px monospace';
+  ctx.fillStyle = '#a0aec0';
+  ctx.fillText('Select with Click or Press [1], [2], or [3]', canvas.width / 2, canvas.height / 2 - 85);
+
+  const cw = 220, ch = 140, gap = 20;
+  const totalW = (cw * 3) + (gap * 2);
+  const startX = (canvas.width - totalW) / 2;
+  const cardY = canvas.height / 2 - ch / 2;
+
+  for (let i = 0; i < draftCards.length; i++) {
+    const card = draftCards[i];
+    const cardX = startX + i * (cw + gap);
+
+    const isEvo = card.isEvolutionCard;
+    ctx.fillStyle = isEvo ? '#1c2826' : '#1a202c';
+    ctx.strokeStyle = isEvo ? '#ecc94b' : '#4299e1';
+    ctx.lineWidth = isEvo ? 3 : 2;
+    ctx.fillRect(cardX, cardY, cw, ch);
+    ctx.strokeRect(cardX, cardY, cw, ch);
+
+    ctx.fillStyle = isEvo ? '#f6e05e' : '#63b3ed';
+    ctx.font = isEvo ? 'bold 13px monospace' : 'bold 14px monospace';
+    ctx.fillText(`[${i + 1}] ${card.title}`, cardX + cw / 2, cardY + 32);
+
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '11px monospace';
+    ctx.fillText(card.desc, cardX + cw / 2, cardY + 75);
+  }
 }
 
 function gameLoop(currentTimestamp) {
@@ -633,7 +758,7 @@ function gameLoop(currentTimestamp) {
     const allTargets = [...enemyManager.enemies, ...worldManager.nests];
     weaponManager.update(dt, allTargets);
 
-        if (gibManager) {
+    if (gibManager) {
       gibManager.update(dt, decalManager);
     }
 
@@ -657,7 +782,6 @@ function gameLoop(currentTimestamp) {
       }
     }
 
-        // Пул всплывающего урона с защитой от переполнения памяти (макс 60 надписей)
     if (damageTexts.length > 60) {
       damageTexts.splice(0, damageTexts.length - 60);
     }
@@ -943,91 +1067,6 @@ function renderLandmarkTerminalHUD() {
       ctx.fillStyle = '#63b3ed';
       ctx.fillText('[F] FAST TRAVEL TO HUB (DISTANCE TAX)', canvas.width / 2, canvas.height - 75);
     }
-  }
-}
-
-function renderWorldGrid() {
-  const gridSize = window.CONFIG.WORLD.tileGridSize;
-  const viewLeft = camera.x - canvas.width / 2;
-  const viewRight = camera.x + canvas.width / 2;
-  const viewTop = camera.y - canvas.height / 2;
-  const viewBottom = camera.y + canvas.height / 2;
-
-  ctx.strokeStyle = 'rgba(45, 55, 72, 0.35)';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (let x = Math.floor(viewLeft / gridSize) * gridSize; x <= viewRight; x += gridSize) {
-    ctx.moveTo(x, viewTop); ctx.lineTo(x, viewBottom);
-  }
-  for (let y = Math.floor(viewTop / gridSize) * gridSize; y <= viewBottom; y += gridSize) {
-    ctx.moveTo(viewLeft, y); ctx.lineTo(viewRight, y);
-  }
-  ctx.stroke();
-
-  ctx.strokeStyle = 'rgba(237, 137, 54, 0.45)';
-  ctx.lineWidth = 2.5;
-  ctx.setLineDash([12, 12]);
-  ctx.beginPath();
-  ctx.arc(0, 0, window.CONFIG.WORLD.ring1Radius, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.setLineDash([]);
-}
-
-function renderSanctuaryHub() {
-  ctx.fillStyle = 'rgba(72, 187, 120, 0.08)';
-  ctx.strokeStyle = '#48bb78';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(0, 0, 180, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = '#48bb78';
-  ctx.beginPath();
-  ctx.arc(0, 0, 16, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = '#a0aec0';
-  ctx.font = '11px monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText('SANCTUARY GATE (0, 0)', 0, 36);
-}
-
-function renderDraftOverlay() {
-  ctx.fillStyle = 'rgba(5, 7, 12, 0.75)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = '#48bb78';
-  ctx.font = 'bold 22px monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText('CHASSIS UPGRADE AVAILABLE (BULLET TIME)', canvas.width / 2, canvas.height / 2 - 110);
-  ctx.font = '13px monospace';
-  ctx.fillStyle = '#a0aec0';
-  ctx.fillText('Select with Click or Press [1], [2], or [3]', canvas.width / 2, canvas.height / 2 - 85);
-
-  const cw = 220, ch = 140, gap = 20;
-  const totalW = (cw * 3) + (gap * 2);
-  const startX = (canvas.width - totalW) / 2;
-  const cardY = canvas.height / 2 - ch / 2;
-
-  for (let i = 0; i < draftCards.length; i++) {
-    const card = draftCards[i];
-    const cardX = startX + i * (cw + gap);
-
-    const isEvo = card.isEvolutionCard;
-    ctx.fillStyle = isEvo ? '#1c2826' : '#1a202c';
-    ctx.strokeStyle = isEvo ? '#ecc94b' : '#4299e1';
-    ctx.lineWidth = isEvo ? 3 : 2;
-    ctx.fillRect(cardX, cardY, cw, ch);
-    ctx.strokeRect(cardX, cardY, cw, ch);
-
-    ctx.fillStyle = isEvo ? '#f6e05e' : '#63b3ed';
-    ctx.font = isEvo ? 'bold 13px monospace' : 'bold 14px monospace';
-    ctx.fillText(`[${i + 1}] ${card.title}`, cardX + cw / 2, cardY + 32);
-
-    ctx.fillStyle = '#e2e8f0';
-    ctx.font = '11px monospace';
-    ctx.fillText(card.desc, cardX + cw / 2, cardY + 75);
   }
 }
 
