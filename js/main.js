@@ -1,4 +1,4 @@
-// js/main.js — Легковесный цикл движка, обработка ввода и координатор систем
+// js/main.js — Легковесний цикл движка, обробка вводу і координатор систем
 
 import { CONFIG, MetaProgression, saveMetaProgression } from './config.js';
 import { state, triggerHitStop, spawnShockwave } from './state.js';
@@ -6,6 +6,8 @@ import { renderWorldGrid, renderSanctuaryHub } from './render/environment.js';
 import { WorldManager } from './world/manager.js';
 import { WeaponManager } from './weapons/manager.js';
 import { ScrapSaw, BioSporeMortar, TeslaArc, AegisDrones, PlasmaPurifier } from './weapons/arsenal.js';
+import { Player } from './player.js';
+import { EnemyManager } from './enemies/manager.js';
 import {
   renderPlayerVitalsHUD,
   renderArsenalHUD,
@@ -78,7 +80,7 @@ const camera = {
 
 state.camera = camera;
 window.camera = camera;
-state.player = new window.Player(0, 0);
+state.player = new Player(0, 0);
 window.player = state.player;
 state.spriteManager = new window.SpriteManager();
 window.spriteManager = state.spriteManager;
@@ -89,7 +91,7 @@ window.gibManager = state.gibManager;
 state.weaponManager = new WeaponManager(state.player);
 state.pickupManager = new window.PickupManager();
 window.pickupManager = state.pickupManager;
-state.enemyManager = new window.EnemyManager();
+state.enemyManager = new EnemyManager();
 window.enemyManager = state.enemyManager;
 state.worldManager = new WorldManager();
 window.worldManager = state.worldManager;
@@ -111,7 +113,7 @@ window.triggerFullRunRestart = () => {
   if (state.decalManager) state.decalManager.clear();
   if (state.gibManager) state.gibManager.clear();
 
-  state.enemyManager = new window.EnemyManager();
+  state.enemyManager = new EnemyManager();
   state.pickupManager = new window.PickupManager();
   state.worldManager = new WorldManager();
   state.damageTexts = [];
@@ -215,7 +217,7 @@ function triggerLevelUp() {
   }
   const shuffled = [...candidates].sort(() => 0.5 - Math.random());
   state.draftCards = availableEvolutions.length > 0 ? [availableEvolutions[0], ...shuffled.slice(0, 2)] : shuffled.slice(0, 3);
-  window.Telemetry.recordEvent('LEVEL', `Robot reached Level ${state.player.level}!`);
+  if (window.Telemetry) window.Telemetry.recordEvent('LEVEL', `Robot reached Level ${state.player.level}!`);
 }
 
 function selectCard(index) {
@@ -224,7 +226,7 @@ function selectCard(index) {
   state.player.grow();
   state.isDrafting = false;
   state.timeScale = 1.0;
-  window.Telemetry.recordEvent('UPGRADE', `Equipped: ${state.draftCards[index].title}`);
+  if (window.Telemetry) window.Telemetry.recordEvent('UPGRADE', `Equipped: ${state.draftCards[index].title}`);
   if (state.pendingLevelUps > 0) {
     state.pendingLevelUps--;
     setTimeout(triggerLevelUp, 120);
@@ -239,7 +241,7 @@ function buyWorkshopPerk(perk) {
     MetaProgression.perks[perk.key] = currentRank + 1;
     perk.buy();
     saveMetaProgression();
-    window.Telemetry.recordEvent('META', `Purchased ${perk.title} Rank ${currentRank + 1}!`);
+    if (window.Telemetry) window.Telemetry.recordEvent('META', `Purchased ${perk.title} Rank ${currentRank + 1}!`);
   }
 }
 

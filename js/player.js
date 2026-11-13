@@ -1,4 +1,9 @@
-class Player {
+// js/player.js — Модуль робота-хранителя: мобільність, дэш і щити
+
+import { CONFIG, MetaProgression } from './config.js';
+import { state } from './state.js';
+
+export class Player {
   constructor(x = 0, y = 0) {
     this.x = x;
     this.y = y;
@@ -8,24 +13,22 @@ class Player {
     this.growthScale = 1.0;
     this.facingAngle = 0;
 
-    // Первичная инициализация статов
-    this.speed = window.CONFIG.PLAYER.baseSpeed;
-    this.maxHealth = window.CONFIG.PLAYER.baseHealth;
+    this.speed = CONFIG.PLAYER.baseSpeed;
+    this.maxHealth = CONFIG.PLAYER.baseHealth;
     this.health = this.maxHealth;
-    this.maxShieldCharges = window.CONFIG.PLAYER.baseShieldCharges;
+    this.maxShieldCharges = CONFIG.PLAYER.baseShieldCharges;
     this.shieldCharges = this.maxShieldCharges;
     this.shieldTimer = 0;
-    this.shieldRechargeTime = window.CONFIG.PLAYER.shieldRechargeTime;
+    this.shieldRechargeTime = CONFIG.PLAYER.shieldRechargeTime;
 
-    this.applyMetaUpgrades(true); // true = полная инициализация старта
+    this.applyMetaUpgrades(true);
 
     this.invulnerableTimer = 0;
     this.healthRegenRate = 0.5;
     this.carryingCore = false;
     this.godMode = false;
 
-    // Overdrive Dash
-    const dashCfg = window.CONFIG.PLAYER.DASH;
+    const dashCfg = CONFIG.PLAYER.DASH;
     this.dashCooldown = dashCfg.cooldown;
     this.dashTimer = 0;
     this.isDashing = false;
@@ -37,8 +40,7 @@ class Player {
     this.dashDirY = 0;
     this.afterimages = [];
 
-    // Круиз-контроль
-    const cruiseCfg = window.CONFIG.PLAYER.CRUISE;
+    const cruiseCfg = CONFIG.PLAYER.CRUISE;
     this.cruiseActivationTime = cruiseCfg.activationTime;
     this.cruiseSpeedMultiplier = cruiseCfg.speedMultiplier;
     this.cruiseTimer = 0;
@@ -47,44 +49,32 @@ class Player {
     this.level = 1;
     this.xp = 0;
     this.xpToNext = 4;
-
     this.keys = { up: false, down: false, left: false, right: false };
     this.bindInputs();
   }
 
-  // FIX БАГА #1: при покупке в хабе сохраняем текущее HP и заряд щита
   applyMetaUpgrades(isFirstSpawn = false) {
-    const perks = (window.MetaProgression && window.MetaProgression.perks) || {
-      chassisArmor: 0,
-      engineSpeed: 0,
-      shieldCapacitor: 0
-    };
-
-    const prevMaxHp = this.maxHealth || window.CONFIG.PLAYER.baseHealth;
+    const perks = (MetaProgression && MetaProgression.perks) || { chassisArmor: 0, engineSpeed: 0, shieldCapacitor: 0 };
+    const prevMaxHp = this.maxHealth || CONFIG.PLAYER.baseHealth;
     const hpRatio = isFirstSpawn ? 1.0 : (this.health / prevMaxHp);
 
-    this.speed = window.CONFIG.PLAYER.baseSpeed + (perks.engineSpeed * 8);
-    this.maxHealth = window.CONFIG.PLAYER.baseHealth + (perks.chassisArmor * 15);
+    this.speed = CONFIG.PLAYER.baseSpeed + (perks.engineSpeed * 8);
+    this.maxHealth = CONFIG.PLAYER.baseHealth + (perks.chassisArmor * 15);
     this.health = isFirstSpawn ? this.maxHealth : Math.min(this.maxHealth, this.maxHealth * hpRatio);
-
-    this.maxShieldCharges = window.CONFIG.PLAYER.baseShieldCharges;
+    this.maxShieldCharges = CONFIG.PLAYER.baseShieldCharges;
     if (isFirstSpawn) {
       this.shieldCharges = this.maxShieldCharges;
       this.shieldTimer = 0;
     } else {
       this.shieldCharges = Math.min(this.shieldCharges, this.maxShieldCharges);
     }
-
-    this.shieldRechargeTime = Math.max(12.0, window.CONFIG.PLAYER.shieldRechargeTime - (perks.shieldCapacitor * 2.0));
+    this.shieldRechargeTime = Math.max(12.0, CONFIG.PLAYER.shieldRechargeTime - (perks.shieldCapacitor * 2.0));
   }
 
   bindInputs() {
     window.addEventListener('keydown', (e) => {
       this.handleKey(e.code, true);
-      if (e.code === 'Space') {
-        e.preventDefault();
-        this.triggerDash();
-      }
+      if (e.code === 'Space') { e.preventDefault(); this.triggerDash(); }
     });
     window.addEventListener('keyup', (e) => this.handleKey(e.code, false));
   }
@@ -98,7 +88,6 @@ class Player {
 
   triggerDash() {
     if (this.dashTimer > 0 || this.isDashing) return;
-
     let dx = 0, dy = 0;
     if (this.keys.left) dx -= 1;
     if (this.keys.right) dx += 1;
@@ -110,8 +99,7 @@ class Player {
       dy = Math.sin(this.facingAngle);
     } else {
       const len = Math.hypot(dx, dy);
-      dx /= len;
-      dy /= len;
+      dx /= len; dy /= len;
     }
 
     this.isDashing = true;
@@ -121,12 +109,8 @@ class Player {
     this.dashDirY = dy;
     this.invulnerableTimer = Math.max(this.invulnerableTimer, this.dashIFrames);
 
-    const traumaVal = window.CONFIG.JUICE.trauma.dash || 0.20;
-    if (window.camera) window.camera.addTrauma(traumaVal);
-    if (window.spawnShockwave) {
-      const swR = window.CONFIG.PLAYER.DASH.shockwaveRadius || 55;
-      window.spawnShockwave(this.x, this.y, { radius: 8, maxRadius: swR, color: '#63b3ed', speed: 280, lineWidth: 3.5 });
-    }
+    if (state.camera) state.camera.addTrauma(CONFIG.JUICE.trauma.dash || 0.2);
+    if (window.spawnShockwave) window.spawnShockwave(this.x, this.y, { radius: 8, maxRadius: 55, color: '#63b3ed', speed: 280, lineWidth: 3.5 });
   }
 
   addXP(amount) {
@@ -150,38 +134,31 @@ class Player {
 
     if (this.shieldCharges > 0) {
       this.shieldCharges--;
-      this.invulnerableTimer = window.CONFIG.PLAYER.invulnOnShieldBreak;
+      this.invulnerableTimer = CONFIG.PLAYER.invulnOnShieldBreak;
       this.shieldTimer = 0;
-      window.Telemetry.metrics.shieldHitsAbsorbed++;
+      if (window.Telemetry) window.Telemetry.metrics.shieldHitsAbsorbed++;
       this.pushCrowdBack(80, 160);
-
-      if (window.spawnShockwave) {
-        window.spawnShockwave(this.x, this.y, { radius: 15, maxRadius: 150, color: '#4299e1', speed: 420, lineWidth: 6 });
-      }
-      if (window.camera) window.camera.addTrauma(window.CONFIG.JUICE.trauma.shieldBreak);
-      if (window.triggerHitStop) window.triggerHitStop(window.CONFIG.JUICE.hitStop.shieldBreak);
+      if (window.spawnShockwave) window.spawnShockwave(this.x, this.y, { radius: 15, maxRadius: 150, color: '#4299e1', speed: 420, lineWidth: 6 });
+      if (state.camera) state.camera.addTrauma(CONFIG.JUICE.trauma.shieldBreak);
+      if (window.triggerHitStop) window.triggerHitStop(CONFIG.JUICE.hitStop.shieldBreak);
       return;
     }
 
     this.health = Math.max(0, this.health - amount);
-    this.invulnerableTimer = window.CONFIG.PLAYER.invulnOnDamage;
-    window.Telemetry.metrics.damageTaken += amount;
-    this.pushCrowdBack(window.CONFIG.PLAYER.pushbackRadius, window.CONFIG.PLAYER.pushbackForce);
+    this.invulnerableTimer = CONFIG.PLAYER.invulnOnDamage;
+    if (window.Telemetry) window.Telemetry.metrics.damageTaken += amount;
+    this.pushCrowdBack(CONFIG.PLAYER.pushbackRadius, CONFIG.PLAYER.pushbackForce);
+    if (state.camera) state.camera.addTrauma(CONFIG.JUICE.trauma.playerHit);
+    if (window.triggerHitStop) window.triggerHitStop(CONFIG.JUICE.hitStop.playerHit);
 
-    if (window.camera) window.camera.addTrauma(window.CONFIG.JUICE.trauma.playerHit);
-    if (window.triggerHitStop) window.triggerHitStop(window.CONFIG.JUICE.hitStop.playerHit);
-
-    if (this.health <= 0) {
-      this.die();
-    }
+    if (this.health <= 0) this.die();
   }
 
   pushCrowdBack(radius, force) {
-    if (!window.enemyManager) return;
-    for (const e of window.enemyManager.enemies) {
+    if (!state.enemyManager) return;
+    for (const e of state.enemyManager.enemies) {
       if (!e.alive) continue;
-      const dx = e.x - this.x;
-      const dy = e.y - this.y;
+      const dx = e.x - this.x, dy = e.y - this.y;
       const d = Math.hypot(dx, dy);
       if (d > 0 && d < radius + e.radius) {
         e.x += (dx / d) * force * 0.15;
@@ -195,30 +172,21 @@ class Player {
   }
 
   die() {
-    window.Telemetry.metrics.deaths++;
-    window.Telemetry.metrics.resourcesLostOnDeath.techScrap += window.Telemetry.metrics.resourcesCollected.techScrap;
-    window.Telemetry.metrics.resourcesCollected.techScrap = 0;
-    window.Telemetry.metrics.resourcesCollected.bioEssence = 0;
-
-    window.Telemetry.recordEvent('DEATH', 'Robot destroyed! Lost unbanked scrap.');
-
-    this.resetRunProgression();
-
-    if (window.triggerFullRunRestart) {
-      window.triggerFullRunRestart();
+    if (window.Telemetry) {
+      window.Telemetry.metrics.deaths++;
+      window.Telemetry.metrics.resourcesLostOnDeath.techScrap += window.Telemetry.metrics.resourcesCollected.techScrap;
+      window.Telemetry.metrics.resourcesCollected.techScrap = 0;
+      window.Telemetry.metrics.resourcesCollected.bioEssence = 0;
+      window.Telemetry.recordEvent('DEATH', 'Robot destroyed! Lost unbanked scrap.');
     }
+    this.resetRunProgression();
+    if (window.triggerFullRunRestart) window.triggerFullRunRestart();
   }
 
   resetRunProgression() {
-    this.x = 0;
-    this.y = 0;
-    this.vx = 0;
-    this.vy = 0;
-    this.level = 1;
-    this.xp = 0;
-    this.xpToNext = 4;
-    this.growthScale = 1.0;
-    this.radius = 18;
+    this.x = 0; this.y = 0; this.vx = 0; this.vy = 0;
+    this.level = 1; this.xp = 0; this.xpToNext = 4;
+    this.growthScale = 1.0; this.radius = 18;
     this.applyMetaUpgrades(true);
     this.healthRegenRate = 0.5;
     this.carryingCore = false;
@@ -232,19 +200,14 @@ class Player {
     if (this.keys.up) my -= 1;
     if (this.keys.down) my += 1;
 
-    if (mx !== 0 && my !== 0) {
-      mx *= 0.7071;
-      my *= 0.7071;
-    }
-
+    if (mx !== 0 && my !== 0) { mx *= 0.7071; my *= 0.7071; }
     const isMoving = mx !== 0 || my !== 0;
 
     if (isMoving && this.invulnerableTimer <= 0) {
       this.cruiseTimer += dt;
       this.isCruising = this.cruiseTimer >= this.cruiseActivationTime;
     } else {
-      this.cruiseTimer = 0;
-      this.isCruising = false;
+      this.cruiseTimer = 0; this.isCruising = false;
     }
 
     const currentSpeed = this.speed * (this.isCruising ? this.cruiseSpeedMultiplier : 1.0);
@@ -252,35 +215,19 @@ class Player {
     this.vy = my * currentSpeed;
 
     if (this.dashTimer > 0) this.dashTimer -= dt;
-
     if (this.isDashing) {
       this.dashTimeLeft -= dt;
       this.vx = this.dashDirX * this.dashSpeed;
       this.vy = this.dashDirY * this.dashSpeed;
-
-      this.afterimages.push({
-        x: this.x,
-        y: this.y,
-        angle: this.facingAngle,
-        radius: this.radius,
-        alpha: 0.6
-      });
-
-      if (this.dashTimeLeft <= 0) {
-        this.isDashing = false;
-      }
+      this.afterimages.push({ x: this.x, y: this.y, radius: this.radius, alpha: 0.6 });
+      if (this.dashTimeLeft <= 0) this.isDashing = false;
     }
 
-    const prevX = this.x;
-    const prevY = this.y;
+    const prevX = this.x, prevY = this.y;
     this.x += this.vx * dt;
     this.y += this.vy * dt;
-
-    window.Telemetry.metrics.distanceTraveled += Math.round(Math.hypot(this.x - prevX, this.y - prevY));
-
-    if (isMoving) {
-      this.facingAngle = Math.atan2(my, mx);
-    }
+    if (window.Telemetry) window.Telemetry.metrics.distanceTraveled += Math.round(Math.hypot(this.x - prevX, this.y - prevY));
+    if (isMoving) this.facingAngle = Math.atan2(my, mx);
 
     for (let i = this.afterimages.length - 1; i >= 0; i--) {
       this.afterimages[i].alpha -= dt * 3.5;
@@ -294,14 +241,8 @@ class Player {
         this.shieldTimer = 0;
       }
     }
-
-    if (this.health < this.maxHealth) {
-      this.health = Math.min(this.maxHealth, this.health + this.healthRegenRate * dt);
-    }
-
-    if (this.invulnerableTimer > 0) {
-      this.invulnerableTimer -= dt;
-    }
+    if (this.health < this.maxHealth) this.health = Math.min(this.maxHealth, this.health + this.healthRegenRate * dt);
+    if (this.invulnerableTimer > 0) this.invulnerableTimer -= dt;
   }
 
   render(ctx) {
@@ -318,118 +259,64 @@ class Player {
 
     ctx.save();
     ctx.translate(this.x, this.y);
-
-    if (this.invulnerableTimer > 0 && Math.floor(performance.now() / 60) % 2 === 0) {
-      ctx.globalAlpha = 0.45;
-    }
-
+    if (this.invulnerableTimer > 0 && Math.floor(performance.now() / 60) % 2 === 0) ctx.globalAlpha = 0.45;
     if (this.godMode) {
-      ctx.strokeStyle = '#ffd700';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(0, 0, this.radius + 15 + Math.sin(performance.now() / 100) * 3, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.strokeStyle = '#ffd700'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(0, 0, this.radius + 15, 0, Math.PI * 2); ctx.stroke();
     }
-
     if (this.carryingCore) {
-      const corePulse = Math.sin(performance.now() / 150) * 3;
-      ctx.strokeStyle = '#ecc94b';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.arc(0, 0, this.radius + 12 + corePulse, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.strokeStyle = '#ecc94b'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(0, 0, this.radius + 12, 0, Math.PI * 2); ctx.stroke();
     }
-
     if (this.shieldCharges > 0) {
-      ctx.strokeStyle = '#4299e1';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.arc(0, 0, this.radius + 7 + Math.sin(performance.now() / 200) * 2, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.strokeStyle = '#4299e1'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(0, 0, this.radius + 7, 0, Math.PI * 2); ctx.stroke();
     }
 
     let renderedSprite = false;
-    if (window.spriteManager) {
-      renderedSprite = window.spriteManager.drawRobot(ctx, this, performance.now() / 1000);
-    }
+    if (state.spriteManager) renderedSprite = state.spriteManager.drawRobot(ctx, this, performance.now() / 1000);
 
     if (!renderedSprite) {
       ctx.save();
       ctx.rotate(this.facingAngle);
       ctx.fillStyle = this.godMode ? '#d69e2e' : '#2b6cb0';
-      ctx.strokeStyle = this.godMode ? '#fff' : '#e2e8f0';
-      ctx.lineWidth = 2;
-
+      ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 2;
       ctx.beginPath();
       for (let i = 0; i < 6; i++) {
         const a = (i * Math.PI) / 3;
-        if (i === 0) ctx.moveTo(Math.cos(a) * this.radius, Math.sin(a) * this.radius);
-        else ctx.lineTo(Math.cos(a) * this.radius, Math.sin(a) * this.radius);
+        const px = Math.cos(a) * this.radius, py = Math.sin(a) * this.radius;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
       }
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = '#63b3ed';
-      ctx.beginPath();
-      ctx.arc(this.radius * 0.65, 0, 4 * this.growthScale, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = this.carryingCore ? '#ecc94b' : '#48bb78';
-      ctx.beginPath();
-      ctx.arc(0, 0, 5 * this.growthScale, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.closePath(); ctx.fill(); ctx.stroke();
       ctx.restore();
     }
 
-    // FIX БАГА #12: пламя круиз-контроля направляется сзади угла движения
     if (this.isCruising) {
       ctx.save();
       const flameDist = this.radius * 0.9;
-      const flameX = -Math.cos(this.facingAngle) * flameDist;
-      const flameY = -Math.sin(this.facingAngle) * flameDist;
       ctx.fillStyle = Math.random() > 0.5 ? '#f6ad55' : '#ed8936';
       ctx.beginPath();
-      ctx.arc(flameX, flameY, 5 + Math.random() * 4, 0, Math.PI * 2);
+      ctx.arc(-Math.cos(this.facingAngle) * flameDist, -Math.sin(this.facingAngle) * flameDist, 5 + Math.random() * 4, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
     }
-
     ctx.restore();
     this.renderHUD(ctx);
   }
 
   renderHUD(ctx) {
     const w = 38 * this.growthScale;
-    const h = 4;
     const bx = this.x - w / 2;
     const by = this.y - this.radius - 14;
 
     ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    ctx.fillRect(bx - 1, by - 1, w + 2, h + 2);
-
+    ctx.fillRect(bx - 1, by - 1, w + 2, 6);
     ctx.fillStyle = this.health / this.maxHealth > 0.5 ? '#48bb78' : '#f56565';
-    ctx.fillRect(bx, by, w * (this.health / this.maxHealth), h);
+    ctx.fillRect(bx, by, w * (this.health / this.maxHealth), 4);
 
     for (let i = 0; i < this.maxShieldCharges; i++) {
       ctx.fillStyle = i < this.shieldCharges ? '#4299e1' : '#4a5568';
       ctx.fillRect(bx + i * 9, by - 7, 6, 6);
     }
-
-    if (this.dashTimer > 0) {
-      const cdRatio = 1 - (this.dashTimer / this.dashCooldown);
-      ctx.strokeStyle = '#4a5568';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.arc(this.x, this.y + this.radius + 10, 8, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.strokeStyle = '#63b3ed';
-      ctx.beginPath();
-      ctx.arc(this.x, this.y + this.radius + 10, 8, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * cdRatio);
-      ctx.stroke();
-    }
   }
 }
-
-window.Player = Player;
