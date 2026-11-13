@@ -1,7 +1,8 @@
-// js/world/manager.js — Менеджер мира: спавн руин, гнёзд, компас и телепорт
+// js/world/manager.js — Менеджер світу: спавн руїн, гнізд, компас і телепорт
 
 import { CONFIG, MetaProgression, saveMetaProgression } from '../config.js';
 import { state } from '../state.js';
+import { Telemetry } from '../telemetry.js';
 import { ObstacleWall, LootChest, Landmark, CorePickup, CorruptedNest } from './structures.js';
 
 export class WorldManager {
@@ -77,14 +78,12 @@ export class WorldManager {
     this.transferActive = true;
     this.transferTimer = this.transferTotalTime;
     if (state.camera) state.camera.addTrauma(0.5);
-    if (window.Telemetry) {
-      window.Telemetry.recordEvent('SURGE', 'Scrap Transfer started! 25s Survival Surge!');
-    }
+    Telemetry.recordEvent('SURGE', 'Scrap Transfer started! 25s Survival Surge!');
   }
 
   completeRemoteTransfer() {
     this.transferActive = false;
-    const m = window.Telemetry ? window.Telemetry.metrics : { resourcesCollected: { techScrap: 0 }, resourcesBanked: { techScrap: 0 } };
+    const m = Telemetry.metrics;
     const scrapSecured = m.resourcesCollected.techScrap;
 
     MetaProgression.bankedTechScrap += scrapSecured;
@@ -93,19 +92,16 @@ export class WorldManager {
     saveMetaProgression();
 
     if (state.camera) state.camera.addTrauma(0.6);
-    if (window.Telemetry) {
-      window.Telemetry.recordEvent('BANK', `Secured +${scrapSecured} Tech Scrap in Sanctuary Vault!`);
-    }
+    Telemetry.recordEvent('BANK', `Secured +${scrapSecured} Tech Scrap in Sanctuary Vault!`);
   }
 
-  // FIX БАГА #9: Налог считается от фактической дистанции игрока до Хаба (0, 0)
   fastTravelToHubWithTax(player) {
     if (!this.landmark.repaired) return;
 
     const dist = Math.hypot(player.x, player.y);
     const taxRate = Math.min(CONFIG.ECONOMY.maxDistanceTax, (dist / 1000) * CONFIG.ECONOMY.distanceTaxRatePer1000px);
 
-    const m = window.Telemetry ? window.Telemetry.metrics : { resourcesCollected: { techScrap: 0 }, resourcesBanked: { techScrap: 0 } };
+    const m = Telemetry.metrics;
     const scrapKept = Math.floor(m.resourcesCollected.techScrap * (1 - taxRate));
 
     MetaProgression.bankedTechScrap += scrapKept;
@@ -116,9 +112,7 @@ export class WorldManager {
     player.x = 0;
     player.y = 0;
 
-    if (window.Telemetry) {
-      window.Telemetry.recordEvent('TRAVEL', `Fast traveled home! Banked ${scrapKept} Scrap (Tax: ${Math.round(taxRate * 100)}%).`);
-    }
+    Telemetry.recordEvent('TRAVEL', `Fast traveled home! Banked ${scrapKept} Scrap (Tax: ${Math.round(taxRate * 100)}%).`);
   }
 
   update(dt, player, enemyManager) {
@@ -233,7 +227,6 @@ export class WorldManager {
     ctx.lineTo(-8, 6);
     ctx.closePath();
     ctx.fill();
-
     ctx.restore();
 
     ctx.fillStyle = color;

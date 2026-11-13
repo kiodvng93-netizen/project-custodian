@@ -1,7 +1,8 @@
 // js/player.js — Модуль робота-хранителя: мобільність, дэш і щити
 
 import { CONFIG, MetaProgression } from './config.js';
-import { state } from './state.js';
+import { state, triggerHitStop, spawnShockwave, requestRunRestart } from './state.js';
+import { Telemetry } from './telemetry.js';
 
 export class Player {
   constructor(x = 0, y = 0) {
@@ -110,7 +111,7 @@ export class Player {
     this.invulnerableTimer = Math.max(this.invulnerableTimer, this.dashIFrames);
 
     if (state.camera) state.camera.addTrauma(CONFIG.JUICE.trauma.dash || 0.2);
-    if (window.spawnShockwave) window.spawnShockwave(this.x, this.y, { radius: 8, maxRadius: 55, color: '#63b3ed', speed: 280, lineWidth: 3.5 });
+    spawnShockwave(this.x, this.y, { radius: 8, maxRadius: 55, color: '#63b3ed', speed: 280, lineWidth: 3.5 });
   }
 
   addXP(amount) {
@@ -136,20 +137,20 @@ export class Player {
       this.shieldCharges--;
       this.invulnerableTimer = CONFIG.PLAYER.invulnOnShieldBreak;
       this.shieldTimer = 0;
-      if (window.Telemetry) window.Telemetry.metrics.shieldHitsAbsorbed++;
+      Telemetry.metrics.shieldHitsAbsorbed++;
       this.pushCrowdBack(80, 160);
-      if (window.spawnShockwave) window.spawnShockwave(this.x, this.y, { radius: 15, maxRadius: 150, color: '#4299e1', speed: 420, lineWidth: 6 });
+      spawnShockwave(this.x, this.y, { radius: 15, maxRadius: 150, color: '#4299e1', speed: 420, lineWidth: 6 });
       if (state.camera) state.camera.addTrauma(CONFIG.JUICE.trauma.shieldBreak);
-      if (window.triggerHitStop) window.triggerHitStop(CONFIG.JUICE.hitStop.shieldBreak);
+      triggerHitStop(CONFIG.JUICE.hitStop.shieldBreak);
       return;
     }
 
     this.health = Math.max(0, this.health - amount);
     this.invulnerableTimer = CONFIG.PLAYER.invulnOnDamage;
-    if (window.Telemetry) window.Telemetry.metrics.damageTaken += amount;
+    Telemetry.metrics.damageTaken += amount;
     this.pushCrowdBack(CONFIG.PLAYER.pushbackRadius, CONFIG.PLAYER.pushbackForce);
     if (state.camera) state.camera.addTrauma(CONFIG.JUICE.trauma.playerHit);
-    if (window.triggerHitStop) window.triggerHitStop(CONFIG.JUICE.hitStop.playerHit);
+    triggerHitStop(CONFIG.JUICE.hitStop.playerHit);
 
     if (this.health <= 0) this.die();
   }
@@ -172,15 +173,13 @@ export class Player {
   }
 
   die() {
-    if (window.Telemetry) {
-      window.Telemetry.metrics.deaths++;
-      window.Telemetry.metrics.resourcesLostOnDeath.techScrap += window.Telemetry.metrics.resourcesCollected.techScrap;
-      window.Telemetry.metrics.resourcesCollected.techScrap = 0;
-      window.Telemetry.metrics.resourcesCollected.bioEssence = 0;
-      window.Telemetry.recordEvent('DEATH', 'Robot destroyed! Lost unbanked scrap.');
-    }
+    Telemetry.metrics.deaths++;
+    Telemetry.metrics.resourcesLostOnDeath.techScrap += Telemetry.metrics.resourcesCollected.techScrap;
+    Telemetry.metrics.resourcesCollected.techScrap = 0;
+    Telemetry.metrics.resourcesCollected.bioEssence = 0;
+    Telemetry.recordEvent('DEATH', 'Robot destroyed! Lost unbanked scrap.');
     this.resetRunProgression();
-    if (window.triggerFullRunRestart) window.triggerFullRunRestart();
+    requestRunRestart();
   }
 
   resetRunProgression() {
@@ -226,7 +225,7 @@ export class Player {
     const prevX = this.x, prevY = this.y;
     this.x += this.vx * dt;
     this.y += this.vy * dt;
-    if (window.Telemetry) window.Telemetry.metrics.distanceTraveled += Math.round(Math.hypot(this.x - prevX, this.y - prevY));
+    Telemetry.metrics.distanceTraveled += Math.round(Math.hypot(this.x - prevX, this.y - prevY));
     if (isMoving) this.facingAngle = Math.atan2(my, mx);
 
     for (let i = this.afterimages.length - 1; i >= 0; i--) {

@@ -1,16 +1,17 @@
-// Telemetry & Auto-Balancing Logging Engine
-class TelemetryEngine {
+// js/telemetry.js — Telemetry & Auto-Balancing Logging Engine (ES Module)
+
+import { CONFIG } from './config.js';
+
+export class TelemetryEngine {
   constructor() {
     this.sessionStartTime = performance.now();
     this.runStartTime = performance.now();
     this.isRunning = true;
 
-    // Live Metrics
     this.fps = 60;
     this.frameCount = 0;
     this.fpsTimer = 0;
 
-    // Aggregated Balance Data
     this.metrics = {
       runDurationSeconds: 0,
       damageDealt: 0,
@@ -26,14 +27,12 @@ class TelemetryEngine {
       deaths: 0,
     };
 
-    // Event History (Capped at 100 entries to prevent memory bloat)
     this.eventLog = [];
     this.hudTimer = 0;
 
     this.recordEvent('SYSTEM', 'Telemetry initialized');
   }
 
-  // Record key milestones or outliers
   recordEvent(type, message, payload = null) {
     const entry = {
       time: ((performance.now() - this.runStartTime) / 1000).toFixed(1),
@@ -45,24 +44,21 @@ class TelemetryEngine {
     if (this.eventLog.length > 100) this.eventLog.pop();
   }
 
-  // Core update loop for telemetry
   update(dt) {
     if (!this.isRunning) return;
 
     this.metrics.runDurationSeconds += dt;
 
-    // FPS calculation
     this.frameCount++;
     this.fpsTimer += dt;
     if (this.fpsTimer >= 0.5) {
-      this.fps = Math.round((this.frameCount / this.fpsTimer));
+      this.fps = Math.round(this.frameCount / this.fpsTimer);
       this.frameCount = 0;
       this.fpsTimer = 0;
     }
 
-    // Refresh visual HUD
     this.hudTimer += dt;
-    if (this.hudTimer >= window.CONFIG.TELEMETRY.hudUpdateInterval) {
+    if (this.hudTimer >= CONFIG.TELEMETRY.hudUpdateInterval) {
       this.updateHUD();
       this.hudTimer = 0;
     }
@@ -70,7 +66,8 @@ class TelemetryEngine {
 
   updateHUD() {
     const hudContainer = document.getElementById('hudContent');
-    if (!hudContainer || document.getElementById('debugHUD').classList.contains('hidden')) return;
+    const debugHud = document.getElementById('debugHUD');
+    if (!hudContainer || !debugHud || debugHud.classList.contains('hidden')) return;
 
     const m = this.metrics;
     const minutes = Math.floor(m.runDurationSeconds / 60);
@@ -84,7 +81,7 @@ FPS: ${this.fps} | Run Time: ${minutes}:${seconds}
 <strong>[COMBAT METRICS]</strong>
 Kills: ${m.kills}
 DPS Output: ${(m.damageDealt / Math.max(1, m.runDurationSeconds)).toFixed(1)}
-Damage Taken: ${m.damageTaken} (Shields Absorbed: ${m.shieldHitsAbsorbed})
+Damage Taken: ${Math.round(m.damageTaken)} (Shields Absorbed: ${m.shieldHitsAbsorbed})
 
 <strong>[ECONOMY & EXTRACTION]</strong>
 Tech Scrap: +${m.resourcesCollected.techScrap} | Banked: ${m.resourcesBanked.techScrap}
@@ -101,7 +98,7 @@ ${this.eventLog.slice(0, 5).map(e => `[${e.time}s] ${e.type}: ${e.message}`).joi
   exportJSON() {
     const report = {
       exportedAt: new Date().toISOString(),
-      configSnapshot: window.CONFIG,
+      configSnapshot: CONFIG,
       summary: this.metrics,
       recentEvents: this.eventLog
     };
@@ -118,4 +115,4 @@ ${this.eventLog.slice(0, 5).map(e => `[${e.time}s] ${e.type}: ${e.message}`).joi
   }
 }
 
-window.Telemetry = new TelemetryEngine();
+export const Telemetry = new TelemetryEngine();

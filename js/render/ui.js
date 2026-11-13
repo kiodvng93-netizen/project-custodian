@@ -1,6 +1,25 @@
 // js/render/ui.js — Отрисовка всех экранов интерфейса, HUD и меню
 
 import { CONFIG, MetaProgression } from '../config.js';
+import { Telemetry } from '../telemetry.js';
+
+function drawWrappedText(ctx, text, cx, startY, maxWidth, lineHeight) {
+  const words = text.split(' ');
+  let line = '';
+  let y = startY;
+
+  for (let i = 0; i < words.length; i++) {
+    const testLine = line ? `${line} ${words[i]}` : words[i];
+    if (ctx.measureText(testLine).width > maxWidth && line) {
+      ctx.fillText(line, cx, y);
+      line = words[i];
+      y += lineHeight;
+    } else {
+      line = testLine;
+    }
+  }
+  if (line) ctx.fillText(line, cx, y);
+}
 
 export function renderPlayerVitalsHUD(ctx, canvas, state) {
   const panelW = 210;
@@ -22,7 +41,7 @@ export function renderPlayerVitalsHUD(ctx, canvas, state) {
 
   ctx.textAlign = 'right';
   ctx.fillStyle = '#fc8181';
-  ctx.fillText(`💀 ${window.Telemetry ? window.Telemetry.metrics.kills : 0}`, panelX + panelW - 10, panelY + 16);
+  ctx.fillText(`💀 ${Telemetry.metrics.kills}`, panelX + panelW - 10, panelY + 16);
 
   const barX = panelX + 10;
   const barY = panelY + 23;
@@ -73,8 +92,8 @@ export function renderPlayerVitalsHUD(ctx, canvas, state) {
 export function renderArsenalHUD(ctx, canvas, state) {
   const slots = state.weaponManager.slots;
   const maxSlots = state.weaponManager.maxSlots;
-  const slotW = 105;
-  const slotH = 46;
+  const slotW = 108;
+  const slotH = 50;
   const gap = 8;
   const totalW = maxSlots * slotW + (maxSlots - 1) * gap;
   const startX = (canvas.width - totalW) / 2;
@@ -98,24 +117,21 @@ export function renderArsenalHUD(ctx, canvas, state) {
       ctx.font = 'bold 10px monospace';
       ctx.textAlign = 'left';
       const title = (isEvo ? '★ ' : '') + wpn.name;
-      ctx.fillText(title.length > 13 ? title.slice(0, 12) + '…' : title, x + 6, y + 14);
-
-      ctx.fillStyle = '#cbd5e0';
-      ctx.font = '9px monospace';
-      let statLine1 = '';
-      let statLine2 = '';
+      ctx.fillText(title.length > 13 ? `${title.slice(0, 12)}…` : title, x + 6, y + 14);
 
       if (wpn.cfg) {
-        const dmg = wpn.cfg.damage || wpn.cfg.impactDamage || wpn.cfg.zoneDamage || 0;
-        statLine1 = `DMG: ${Math.round(dmg)}`;
-        if (wpn.cfg.fireRate) statLine2 = `RATE: ${wpn.cfg.fireRate.toFixed(2)}s`;
-        else if (wpn.cfg.cooldown) statLine2 = `CD: ${wpn.cfg.cooldown.toFixed(2)}s`;
-        else if (wpn.cfg.bladeCount) statLine2 = `BLADES: ${wpn.cfg.bladeCount}`;
-        else if (wpn.cfg.droneCount) statLine2 = `DRONES: ${wpn.cfg.droneCount}`;
-      }
+        const dmg = wpn.cfg.damage || wpn.cfg.zoneDamage || 0;
+        const typeTag = (wpn.cfg.archetype || '').toUpperCase();
+        ctx.fillStyle = '#cbd5e0';
+        ctx.font = '9px monospace';
+        ctx.fillText(`DMG: ${Math.round(dmg)} [${typeTag.slice(0, 5)}]`, x + 6, y + 28);
 
-      ctx.fillText(statLine1, x + 6, y + 27);
-      if (statLine2) ctx.fillText(statLine2, x + 6, y + 38);
+        let statLine2 = '';
+        if (wpn.cfg.count) statLine2 = `ORBITALS: ${wpn.cfg.count}`;
+        else if (wpn.cfg.fireRate) statLine2 = `RATE: ${wpn.cfg.fireRate.toFixed(2)}s`;
+        else if (wpn.cfg.range) statLine2 = `RANGE: ${Math.round(wpn.cfg.range)}`;
+        if (statLine2) ctx.fillText(statLine2, x + 6, y + 41);
+      }
     } else {
       ctx.fillStyle = 'rgba(13, 16, 23, 0.55)';
       ctx.strokeStyle = 'rgba(74, 85, 104, 0.45)';
@@ -128,8 +144,8 @@ export function renderArsenalHUD(ctx, canvas, state) {
       ctx.fillStyle = 'rgba(113, 128, 150, 0.6)';
       ctx.font = '9px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(`SLOT ${i + 1}`, x + slotW / 2, y + 20);
-      ctx.fillText('[EMPTY]', x + slotW / 2, y + 33);
+      ctx.fillText(`SLOT ${i + 1}`, x + slotW / 2, y + 21);
+      ctx.fillText('[EMPTY]', x + slotW / 2, y + 35);
     }
   }
   ctx.restore();
@@ -183,12 +199,12 @@ export function renderDraftOverlay(ctx, canvas, state) {
     ctx.strokeRect(cardX, cardY, cw, ch);
 
     ctx.fillStyle = isEvo ? '#f6e05e' : '#63b3ed';
-    ctx.font = isEvo ? 'bold 13px monospace' : 'bold 14px monospace';
-    ctx.fillText(`[${i + 1}] ${card.title}`, cardX + cw / 2, cardY + 32);
+    ctx.font = isEvo ? 'bold 12px monospace' : 'bold 13px monospace';
+    ctx.fillText(`[${i + 1}] ${card.title}`, cardX + cw / 2, cardY + 28);
 
     ctx.fillStyle = '#e2e8f0';
     ctx.font = '11px monospace';
-    ctx.fillText(card.desc, cardX + cw / 2, cardY + 75);
+    drawWrappedText(ctx, card.desc, cardX + cw / 2, cardY + 58, cw - 20, 15);
   }
 }
 

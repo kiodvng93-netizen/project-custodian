@@ -1,16 +1,22 @@
-class Gib {
+// js/gibs.js — Фізичні уламки ворогів із запіканням у декалі (ES Module)
+
+import { CONFIG } from './config.js';
+import { state } from './state.js';
+
+export class Gib {
   constructor(x, y, vx, vy, options = {}) {
+    const cfg = CONFIG.GIBS || { friction: 0.88, gravity: -480 };
     this.x = x;
     this.y = y;
     this.z = 2 + Math.random() * 8;
     this.vx = vx;
     this.vy = vy;
     this.vz = 90 + Math.random() * 140;
-    this.gravity = -480;
+    this.gravity = cfg.gravity;
+    this.friction = cfg.friction;
 
     this.angle = Math.random() * Math.PI * 2;
     this.angularVelocity = (Math.random() - 0.5) * 16;
-    this.friction = 0.88;
 
     this.size = options.size || (4 + Math.random() * 6);
     this.color = options.color || '#48bb78';
@@ -89,7 +95,6 @@ class Gib {
   render(ctx) {
     if (!this.alive) return;
 
-    // Тень на полу под осколком
     const shadowScale = Math.max(0.2, 1 - (this.z / 90));
     ctx.save();
     ctx.fillStyle = `rgba(0, 0, 0, ${0.4 * shadowScale})`;
@@ -98,7 +103,6 @@ class Gib {
     ctx.fill();
     ctx.restore();
 
-    // Сам осколок на высоте Z
     ctx.save();
     ctx.translate(this.x, this.y - this.z);
     ctx.rotate(this.angle);
@@ -132,10 +136,10 @@ class Gib {
   }
 }
 
-class GibManager {
+export class GibManager {
   constructor() {
     this.gibs = [];
-    this.maxGibs = 140;
+    this.maxGibs = (CONFIG.GIBS && CONFIG.GIBS.maxActive) || 140;
   }
 
   spawnForEnemy(enemy, sourceX, sourceY) {
@@ -152,48 +156,34 @@ class GibManager {
     let shape = 'chunk';
 
     if (enemy.typeKey === 'sprout') {
-      count = 5;
-      baseSpeed = 220;
-      type = 'slime';
-      color = '#68d391';
-      outline = '#276749';
+      count = 5; baseSpeed = 220; type = 'slime';
+      color = '#68d391'; outline = '#276749';
       shape = Math.random() > 0.5 ? 'shard' : 'chunk';
     } else if (enemy.typeKey === 'stalker') {
-      count = 9;
-      baseSpeed = 260;
-      type = 'corrupt';
-      color = '#e53e3e';
-      outline = '#551a1a';
+      count = 9; baseSpeed = 260; type = 'corrupt';
+      color = '#e53e3e'; outline = '#551a1a';
       shape = 'plate';
     } else if (enemy.typeKey === 'dasher') {
-      count = 7;
-      baseSpeed = 340;
-      type = 'amber';
-      color = '#ed8936';
-      outline = '#7b341e';
+      count = 7; baseSpeed = 340; type = 'amber';
+      color = '#ed8936'; outline = '#7b341e';
       shape = 'shard';
     } else if (enemy.typeKey === 'warden') {
-      count = 22;
-      baseSpeed = 420;
-      type = 'oil';
-      color = '#f687b3';
-      outline = '#702459';
+      count = 22; baseSpeed = 420; type = 'oil';
+      color = '#f687b3'; outline = '#702459';
       shape = 'plate';
     }
 
     for (let i = 0; i < count; i++) {
       if (this.gibs.length >= this.maxGibs) {
         const oldest = this.gibs.shift();
-        if (window.decalManager) oldest.bakePermanentDecal(window.decalManager);
+        if (state.decalManager) oldest.bakePermanentDecal(state.decalManager);
       }
 
       const spread = 0.95;
       const angle = fatalAngle + (Math.random() - 0.5) * spread;
       const speed = baseSpeed * (0.6 + Math.random() * 0.9);
-      const vx = Math.cos(angle) * speed;
-      const vy = Math.sin(angle) * speed;
 
-      this.gibs.push(new Gib(enemy.x, enemy.y, vx, vy, {
+      this.gibs.push(new Gib(enemy.x, enemy.y, Math.cos(angle) * speed, Math.sin(angle) * speed, {
         size: (enemy.radius * 0.28) + Math.random() * 3,
         color: i % 2 === 0 ? color : '#e2e8f0',
         outline,
@@ -203,7 +193,7 @@ class GibManager {
     }
   }
 
-  update(dt, decalManager) {
+  update(dt, decalManager = state.decalManager) {
     for (let i = this.gibs.length - 1; i >= 0; i--) {
       const g = this.gibs[i];
       g.update(dt, decalManager);
@@ -214,8 +204,8 @@ class GibManager {
   }
 
   render(ctx) {
-    for (const g of this.gibs) {
-      g.render(ctx);
+    for (let i = 0; i < this.gibs.length; i++) {
+      this.gibs[i].render(ctx);
     }
   }
 
@@ -223,5 +213,3 @@ class GibManager {
     this.gibs = [];
   }
 }
-
-window.GibManager = GibManager;

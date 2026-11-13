@@ -1,11 +1,16 @@
 // js/main.js — Легковесний цикл движка, обробка вводу і координатор систем
 
 import { CONFIG, MetaProgression, saveMetaProgression } from './config.js';
-import { state, triggerHitStop, spawnShockwave } from './state.js';
+import { state, setRunRestartHandler } from './state.js';
+import { Telemetry } from './telemetry.js';
+import { DecalManager } from './decals.js';
+import { GibManager } from './gibs.js';
+import { SpriteManager } from './sprites.js';
+import { PickupManager } from './pickups.js';
 import { renderWorldGrid, renderSanctuaryHub } from './render/environment.js';
 import { WorldManager } from './world/manager.js';
 import { WeaponManager } from './weapons/manager.js';
-import { ScrapSaw, BioSporeMortar, TeslaArc, AegisDrones, PlasmaPurifier } from './weapons/arsenal.js';
+import { EVOLUTIONS } from './weapons/catalog.js';
 import { Player } from './player.js';
 import { EnemyManager } from './enemies/manager.js';
 import {
@@ -22,37 +27,7 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 let lastTimestamp = 0;
 const debugHUD = document.getElementById('debugHUD');
-
-class Shockwave {
-  constructor(x, y, options = {}) {
-    this.x = x;
-    this.y = y;
-    this.radius = options.radius || 12;
-    this.maxRadius = options.maxRadius || 95;
-    this.speed = options.speed || 320;
-    this.color = options.color || '#68d391';
-    this.lineWidth = options.lineWidth || 4.5;
-    this.alpha = 1.0;
-    this.alive = true;
-  }
-  update(dt) {
-    this.radius += this.speed * dt;
-    this.alpha = Math.max(0, 1 - (this.radius / this.maxRadius));
-    if (this.radius >= this.maxRadius || this.alpha <= 0) this.alive = false;
-  }
-  render(ctx) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.strokeStyle = this.color;
-    ctx.globalAlpha = this.alpha;
-    ctx.lineWidth = Math.max(1, this.lineWidth * this.alpha);
-    ctx.beginPath();
-    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  }
-}
-window.Shockwave = Shockwave;
+const _allTargets = [];
 
 const camCfg = CONFIG.CAMERA;
 const camera = {
@@ -79,54 +54,31 @@ const camera = {
 };
 
 state.camera = camera;
-window.camera = camera;
 state.player = new Player(0, 0);
-window.player = state.player;
-state.spriteManager = new window.SpriteManager();
-window.spriteManager = state.spriteManager;
-state.decalManager = new window.DecalManager();
-window.decalManager = state.decalManager;
-state.gibManager = new window.GibManager();
-window.gibManager = state.gibManager;
+state.spriteManager = new SpriteManager();
+state.decalManager = new DecalManager();
+state.gibManager = new GibManager();
 state.weaponManager = new WeaponManager(state.player);
-state.pickupManager = new window.PickupManager();
-window.pickupManager = state.pickupManager;
+state.pickupManager = new PickupManager();
 state.enemyManager = new EnemyManager();
-window.enemyManager = state.enemyManager;
 state.worldManager = new WorldManager();
-window.worldManager = state.worldManager;
 
-window.triggerFullRunRestart = () => {
-  CONFIG.WEAPONS.blaster.damage = CONFIG.WEAPONS.blaster.baseDamage;
-  CONFIG.WEAPONS.blaster.fireRate = CONFIG.WEAPONS.blaster.baseFireRate;
-  CONFIG.WEAPONS.saw.bladeCount = 1;
-  CONFIG.WEAPONS.saw.damage = CONFIG.WEAPONS.saw.baseDamage;
-  CONFIG.WEAPONS.mortar.damage = CONFIG.WEAPONS.mortar.baseDamage;
-  CONFIG.WEAPONS.mortar.cloudRadius = 65;
-  CONFIG.WEAPONS.tesla.damage = CONFIG.WEAPONS.tesla.baseDamage;
-  CONFIG.WEAPONS.drone.damage = CONFIG.WEAPONS.drone.baseDamage;
-  CONFIG.WEAPONS.drone.droneCount = 2;
-  CONFIG.WEAPONS.flamer.damage = CONFIG.WEAPONS.flamer.baseDamage;
+setRunRestartHandler(() => {
   CONFIG.PLAYER.pickupRadius = 110;
-
   state.weaponManager.reset();
   if (state.decalManager) state.decalManager.clear();
   if (state.gibManager) state.gibManager.clear();
 
   state.enemyManager = new EnemyManager();
-  state.pickupManager = new window.PickupManager();
+  state.pickupManager = new PickupManager();
   state.worldManager = new WorldManager();
-  state.damageTexts = [];
-  state.shockwaves = [];
-
-  window.enemyManager = state.enemyManager;
-  window.pickupManager = state.pickupManager;
-  window.worldManager = state.worldManager;
+  state.damageTexts.length = 0;
+  state.shockwaves.length = 0;
 
   camera.x = 0; camera.y = 0; camera.trauma = 0;
   state.hitStopTimer = 0;
   state.pendingLevelUps = 0;
-};
+});
 
 function resizeCanvas() {
   canvas.width = window.innerWidth;
@@ -139,45 +91,52 @@ const UPGRADE_POOL = [
   {
     id: 'blaster_tune', title: 'OVERCLOCK BLASTER', weaponName: 'Tech Blaster', desc: '+6 Damage, +20% Fire Rate',
     apply: () => {
-      CONFIG.WEAPONS.blaster.damage += 6;
-      CONFIG.WEAPONS.blaster.fireRate = Math.max(0.16, CONFIG.WEAPONS.blaster.fireRate * 0.8);
-      const blaster = state.weaponManager.slots.find(w => w.name === 'Tech Blaster');
-      if (blaster) blaster.cfg = CONFIG.WEAPONS.blaster;
+      const cfg = state.weaponManager.getConfig('blaster');
+      if (!cfg) return;
+      cfg.damage += 6;
+      cfg.fireRate = Math.max(0.16, cfg.fireRate * 0.8);
     }
   },
   {
-    id: 'scrap_saw_weapon', title: 'SCRAP SAW (WEAPON)', weaponName: 'Scrap Saw', desc: 'Mount orbital circular saw blade',
+    id: 'scrap_saw_weapon', title: 'SCRAP SAW (ORBITAL)', weaponName: 'Scrap Saw', desc: 'Mount orbital circular saw blade',
     apply: () => {
-      if (!state.weaponManager.hasWeapon("Scrap Saw")) state.weaponManager.addWeapon(new ScrapSaw(state.player));
-      else { CONFIG.WEAPONS.saw.bladeCount = Math.min(4, CONFIG.WEAPONS.saw.bladeCount + 1); CONFIG.WEAPONS.saw.damage += 6; }
+      if (!state.weaponManager.hasWeapon('Scrap Saw')) state.weaponManager.addWeaponByKey('saw');
+      else { const cfg = state.weaponManager.getConfig('saw'); cfg.count = Math.min(4, cfg.count + 1); cfg.damage += 6; }
     }
   },
   {
     id: 'bio_mortar_weapon', title: 'BIO-SPORE MORTAR', weaponName: 'Bio-Spore Mortar', desc: 'Lob spores creating lingering slowing AoE clouds',
     apply: () => {
-      if (!state.weaponManager.hasWeapon("Bio-Spore Mortar")) state.weaponManager.addWeapon(new BioSporeMortar(state.player));
-      else { CONFIG.WEAPONS.mortar.damage += 14; CONFIG.WEAPONS.mortar.cloudRadius = Math.min(120, CONFIG.WEAPONS.mortar.cloudRadius + 15); }
+      if (!state.weaponManager.hasWeapon('Bio-Spore Mortar')) state.weaponManager.addWeaponByKey('mortar');
+      else { const cfg = state.weaponManager.getConfig('mortar'); cfg.damage += 14; cfg.zoneRadius = Math.min(120, cfg.zoneRadius + 15); }
     }
   },
   {
-    id: 'tesla_arc_weapon', title: 'TESLA ARC (WEAPON)', weaponName: 'Tesla Arc', desc: 'Unleash chained lightning bouncing between foes',
+    id: 'tesla_arc_weapon', title: 'TESLA ARC (CHAIN)', weaponName: 'Tesla Arc', desc: 'Unleash chained lightning bouncing between foes',
     apply: () => {
-      if (!state.weaponManager.hasWeapon("Tesla Arc")) state.weaponManager.addWeapon(new TeslaArc(state.player));
-      else { CONFIG.WEAPONS.tesla.damage += 8; CONFIG.WEAPONS.tesla.chainCount += 1; }
+      if (!state.weaponManager.hasWeapon('Tesla Arc')) state.weaponManager.addWeaponByKey('tesla');
+      else { const cfg = state.weaponManager.getConfig('tesla'); cfg.damage += 8; cfg.chainCount += 1; }
     }
   },
   {
-    id: 'aegis_drones_weapon', title: 'AEGIS DRONES (WEAPON)', weaponName: 'Aegis Drones', desc: 'Deploy orbiting combat drones with laser interceptors',
+    id: 'aegis_drones_weapon', title: 'AEGIS DRONES (ORBITAL)', weaponName: 'Aegis Drones', desc: 'Deploy orbiting combat drones with laser interceptors',
     apply: () => {
-      if (!state.weaponManager.hasWeapon("Aegis Drones")) state.weaponManager.addWeapon(new AegisDrones(state.player));
-      else { CONFIG.WEAPONS.drone.droneCount = Math.min(4, CONFIG.WEAPONS.drone.droneCount + 1); CONFIG.WEAPONS.drone.damage += 5; }
+      if (!state.weaponManager.hasWeapon('Aegis Drones')) state.weaponManager.addWeaponByKey('drone');
+      else { const cfg = state.weaponManager.getConfig('drone'); cfg.count = Math.min(4, cfg.count + 1); cfg.damage += 5; }
     }
   },
   {
-    id: 'plasma_purifier_weapon', title: 'PLASMA PURIFIER (WEAPON)', weaponName: 'Plasma Purifier', desc: 'Unleash continuous conical stream of incinerating plasma',
+    id: 'plasma_purifier_weapon', title: 'PLASMA PURIFIER (CONE)', weaponName: 'Plasma Purifier', desc: 'Unleash continuous conical stream of incinerating plasma',
     apply: () => {
-      if (!state.weaponManager.hasWeapon("Plasma Purifier")) state.weaponManager.addWeapon(new PlasmaPurifier(state.player));
-      else { CONFIG.WEAPONS.flamer.damage += 18; CONFIG.WEAPONS.flamer.range = Math.min(260, CONFIG.WEAPONS.flamer.range + 25); }
+      if (!state.weaponManager.hasWeapon('Plasma Purifier')) state.weaponManager.addWeaponByKey('flamer');
+      else { const cfg = state.weaponManager.getConfig('flamer'); cfg.damage += 18; cfg.range = Math.min(260, cfg.range + 25); }
+    }
+  },
+  {
+    id: 'static_aura_weapon', title: 'STATIC AURA (AURA)', weaponName: 'Static Aura', desc: 'Emit pulsing electromagnetic field slowing and shocking nearby foes',
+    apply: () => {
+      if (!state.weaponManager.hasWeapon('Static Aura')) state.weaponManager.addWeaponByKey('staticAura');
+      else { const cfg = state.weaponManager.getConfig('staticAura'); cfg.damage += 5; cfg.radius = Math.min(180, cfg.radius + 15); }
     }
   },
   { id: 'nanite_regen', title: 'NANITE REPAIR', desc: '+1.2 HP/sec Passive Regeneration', apply: () => { state.player.healthRegenRate += 1.2; } },
@@ -200,24 +159,23 @@ function triggerLevelUp() {
   state.timeScale = 0.08;
 
   const availableEvolutions = [];
-  if (CONFIG.EVOLUTIONS) {
-    for (const [key, evo] of Object.entries(CONFIG.EVOLUTIONS)) {
-      if (!state.weaponManager.hasWeapon(evo.resultWeapon) && evo.ingredients.every(name => state.weaponManager.hasWeapon(name))) {
-        availableEvolutions.push({
-          id: evo.id, title: `★ EVOLUTION: ${evo.name}`, desc: evo.desc, isEvolutionCard: true,
-          apply: () => state.weaponManager.evolveWeapons(key)
-        });
-      }
+  for (const [key, evo] of Object.entries(EVOLUTIONS)) {
+    const resultCfg = state.weaponManager.getConfig(evo.resultKey);
+    if (resultCfg && !state.weaponManager.hasWeapon(resultCfg.name) && evo.ingredients.every(name => state.weaponManager.hasWeapon(name))) {
+      availableEvolutions.push({
+        id: evo.id, title: `★ EVOLUTION: ${evo.name}`, desc: evo.desc, isEvolutionCard: true,
+        apply: () => state.weaponManager.evolveWeapons(key)
+      });
     }
   }
 
   let candidates = [...UPGRADE_POOL];
   if (state.weaponManager.slots.length >= state.weaponManager.maxSlots) {
-    candidates = candidates.filter(card => !card.weaponName || state.weaponManager.slots.some(w => w.name.toLowerCase().trim() === card.weaponName.toLowerCase().trim()));
+    candidates = candidates.filter(card => !card.weaponName || state.weaponManager.hasWeapon(card.weaponName));
   }
-  const shuffled = [...candidates].sort(() => 0.5 - Math.random());
+  const shuffled = candidates.sort(() => 0.5 - Math.random());
   state.draftCards = availableEvolutions.length > 0 ? [availableEvolutions[0], ...shuffled.slice(0, 2)] : shuffled.slice(0, 3);
-  if (window.Telemetry) window.Telemetry.recordEvent('LEVEL', `Robot reached Level ${state.player.level}!`);
+  Telemetry.recordEvent('LEVEL', `Robot reached Level ${state.player.level}!`);
 }
 
 function selectCard(index) {
@@ -226,7 +184,7 @@ function selectCard(index) {
   state.player.grow();
   state.isDrafting = false;
   state.timeScale = 1.0;
-  if (window.Telemetry) window.Telemetry.recordEvent('UPGRADE', `Equipped: ${state.draftCards[index].title}`);
+  Telemetry.recordEvent('UPGRADE', `Equipped: ${state.draftCards[index].title}`);
   if (state.pendingLevelUps > 0) {
     state.pendingLevelUps--;
     setTimeout(triggerLevelUp, 120);
@@ -241,7 +199,7 @@ function buyWorkshopPerk(perk) {
     MetaProgression.perks[perk.key] = currentRank + 1;
     perk.buy();
     saveMetaProgression();
-    if (window.Telemetry) window.Telemetry.recordEvent('META', `Purchased ${perk.title} Rank ${currentRank + 1}!`);
+    Telemetry.recordEvent('META', `Purchased ${perk.title} Rank ${currentRank + 1}!`);
   }
 }
 
@@ -301,8 +259,8 @@ window.addEventListener('click', (e) => {
   }
 });
 
-document.getElementById('btnCopyJSON').addEventListener('click', () => navigator.clipboard.writeText(window.Telemetry.exportJSON()).then(() => alert('Copied report!')));
-document.getElementById('btnResetTelemetry').addEventListener('click', () => window.Telemetry.resetRun());
+document.getElementById('btnCopyJSON').addEventListener('click', () => navigator.clipboard.writeText(Telemetry.exportJSON()).then(() => alert('Copied report!')));
+document.getElementById('btnResetTelemetry').addEventListener('click', () => Telemetry.resetRun());
 
 function renderFrame() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -315,7 +273,7 @@ function renderFrame() {
   if (state.decalManager) state.decalManager.render(ctx, camera.x, camera.y, canvas.width, canvas.height);
   renderSanctuaryHub(ctx, state.spriteManager);
   state.worldManager.render(ctx);
-  state.pickupManager.render(ctx);
+  state.pickupManager.render(ctx, state.spriteManager);
   if (state.gibManager) state.gibManager.render(ctx);
   for (const sw of state.shockwaves) sw.render(ctx);
   state.enemyManager.render(ctx);
@@ -341,19 +299,17 @@ function renderFrame() {
   renderPlayerVitalsHUD(ctx, canvas, state);
   if (state.isPaused) renderPauseMenu(ctx, canvas);
 
-  const distToHub = Math.hypot(state.player.x, state.player.y);
-  if (distToHub < 180 && !state.isWorkshopOpen && !state.isPaused) {
+  if (Math.hypot(state.player.x, state.player.y) < 180 && !state.isWorkshopOpen && !state.isPaused) {
     ctx.fillStyle = '#48bb78';
     ctx.font = 'bold 13px monospace';
     ctx.textAlign = 'center';
     ctx.fillText('[B] OPEN SANCTUARY WORKSHOP', canvas.width / 2, canvas.height / 2 + 50);
   }
 
-  const m = window.Telemetry ? window.Telemetry.metrics : { resourcesCollected: { techScrap: 0 } };
   ctx.fillStyle = '#48bb78';
   ctx.font = 'bold 13px monospace';
   ctx.textAlign = 'left';
-  ctx.fillText(`EXPEDITION SCRAP: ${m.resourcesCollected.techScrap}`, 16, 28);
+  ctx.fillText(`EXPEDITION SCRAP: ${Telemetry.metrics.resourcesCollected.techScrap}`, 16, 28);
   ctx.fillStyle = '#ecc94b';
   ctx.fillText(`SANCTUARY VAULT: ${MetaProgression.bankedTechScrap} SCRAP`, 16, 46);
 
@@ -376,7 +332,7 @@ function gameLoop(currentTimestamp) {
   if (state.hitStopTimer > 0) {
     state.hitStopTimer -= rawDt;
     camera.update(rawDt, state.player.x, state.player.y);
-    if (window.Telemetry) window.Telemetry.update(rawDt);
+    Telemetry.update(rawDt);
     renderFrame();
     requestAnimationFrame(gameLoop);
     return;
@@ -389,8 +345,12 @@ function gameLoop(currentTimestamp) {
     state.worldManager.update(dt, state.player, state.enemyManager);
     state.enemyManager.update(dt, state.player, camera, canvas.width, canvas.height, state.worldManager.nests.length);
 
-    const allTargets = [...state.enemyManager.enemies, ...state.worldManager.nests];
-    state.weaponManager.update(dt, allTargets);
+    _allTargets.length = 0;
+    const enemies = state.enemyManager.enemies;
+    const nests = state.worldManager.nests;
+    for (let i = 0; i < enemies.length; i++) _allTargets.push(enemies[i]);
+    for (let i = 0; i < nests.length; i++) _allTargets.push(nests[i]);
+    state.weaponManager.update(dt, _allTargets);
 
     if (state.gibManager) state.gibManager.update(dt, state.decalManager);
 
@@ -416,7 +376,7 @@ function gameLoop(currentTimestamp) {
     }
 
     camera.update(rawDt, state.player.x, state.player.y);
-    if (window.Telemetry) window.Telemetry.update(rawDt);
+    Telemetry.update(rawDt);
   }
 
   renderFrame();

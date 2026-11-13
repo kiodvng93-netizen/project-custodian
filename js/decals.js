@@ -1,4 +1,8 @@
-class DecalChunk {
+// js/decals.js — Чанкова система декалів (сліди слизу, олії, опіків) (ES Module)
+
+import { CONFIG } from './config.js';
+
+export class DecalChunk {
   constructor(cx, cy, size = 512) {
     this.cx = cx;
     this.cy = cy;
@@ -11,6 +15,7 @@ class DecalChunk {
     this.canvas.height = size;
     this.ctx = this.canvas.getContext('2d');
     this.lastUsed = performance.now();
+    this.needsTextureUpdate = false;
   }
 
   touch() {
@@ -18,11 +23,11 @@ class DecalChunk {
   }
 }
 
-class DecalManager {
+export class DecalManager {
   constructor() {
-    this.chunkSize = 512;
+    this.chunkSize = (CONFIG.DECALS && CONFIG.DECALS.chunkSize) || 512;
+    this.maxChunks = (CONFIG.DECALS && CONFIG.DECALS.maxChunks) || 128;
     this.chunks = new Map();
-    this.maxChunks = 128;
   }
 
   getChunkKey(cx, cy) {
@@ -69,6 +74,7 @@ class DecalManager {
         chunk.ctx.save();
         drawCallback(chunk.ctx, localX, localY);
         chunk.ctx.restore();
+        chunk.needsTextureUpdate = true;
       }
     }
   }
@@ -101,7 +107,6 @@ class DecalManager {
     const boundRadius = radius * 2.8;
 
     this.paintOnWorld(x, y, boundRadius, (ctx, lx, ly) => {
-      // 1. Центральное органическое пятно
       ctx.fillStyle = deepColor;
       ctx.beginPath();
       const points = 7;
@@ -116,13 +121,11 @@ class DecalManager {
       ctx.closePath();
       ctx.fill();
 
-      // 2. Внутренний блик слизи
       ctx.fillStyle = baseColor;
       ctx.beginPath();
       ctx.arc(lx, ly, radius * 0.45, 0, Math.PI * 2);
       ctx.fill();
 
-      // 3. Направленные брызги и капли
       const baseAngle = (dirX !== 0 || dirY !== 0) ? Math.atan2(dirY, dirX) : Math.random() * Math.PI * 2;
       const spread = (dirX !== 0 || dirY !== 0) ? 1.2 : Math.PI * 2;
 
@@ -164,20 +167,14 @@ class DecalManager {
   render(ctx, cameraX, cameraY, viewWidth, viewHeight) {
     const halfW = viewWidth / 2;
     const halfH = viewHeight / 2;
-    const left = cameraX - halfW;
-    const right = cameraX + halfW;
-    const top = cameraY - halfH;
-    const bottom = cameraY + halfH;
-
-    const minCx = Math.floor(left / this.chunkSize);
-    const maxCx = Math.floor(right / this.chunkSize);
-    const minCy = Math.floor(top / this.chunkSize);
-    const maxCy = Math.floor(bottom / this.chunkSize);
+    const minCx = Math.floor((cameraX - halfW) / this.chunkSize);
+    const maxCx = Math.floor((cameraX + halfW) / this.chunkSize);
+    const minCy = Math.floor((cameraY - halfH) / this.chunkSize);
+    const maxCy = Math.floor((cameraY + halfH) / this.chunkSize);
 
     for (let cx = minCx; cx <= maxCx; cx++) {
       for (let cy = minCy; cy <= maxCy; cy++) {
-        const key = this.getChunkKey(cx, cy);
-        const chunk = this.chunks.get(key);
+        const chunk = this.chunks.get(this.getChunkKey(cx, cy));
         if (chunk) {
           chunk.touch();
           ctx.drawImage(chunk.canvas, chunk.worldX, chunk.worldY);
@@ -190,5 +187,3 @@ class DecalManager {
     this.chunks.clear();
   }
 }
-
-window.DecalManager = DecalManager;

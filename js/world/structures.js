@@ -1,7 +1,9 @@
-// js/world/structures.js — Интерактивные и физические структуры мира
+// js/world/structures.js — Інтерактивні та фізичні структури світу
 
 import { CONFIG, MetaProgression } from '../config.js';
 import { state, triggerHitStop, spawnShockwave } from '../state.js';
+import { Telemetry } from '../telemetry.js';
+import { Enemy } from '../enemies/enemy.js';
 
 export class ObstacleWall {
   constructor(x, y, w, h) {
@@ -117,9 +119,7 @@ export class LootChest {
       player.shieldCharges = player.maxShieldCharges;
     }
 
-    if (window.Telemetry) {
-      window.Telemetry.recordEvent('LOOT', 'Supply Cache cracked open! Tech Scrap acquired.');
-    }
+    Telemetry.recordEvent('LOOT', 'Supply Cache cracked open! Tech Scrap acquired.');
   }
 
   render(ctx) {
@@ -170,10 +170,8 @@ export class Landmark {
     if (state.camera) state.camera.addTrauma(0.65);
     triggerHitStop(0.08);
 
-    if (window.Telemetry) {
-      window.Telemetry.recordEvent('TERRAFORM', 'Biosphere Purifier restored! Safe haven created.');
-      window.Telemetry.metrics.resourcesCollected.techScrap += 5;
-    }
+    Telemetry.recordEvent('TERRAFORM', 'Biosphere Purifier restored! Safe haven created.');
+    Telemetry.metrics.resourcesCollected.techScrap += 5;
 
     if (state.pickupManager) {
       for (let i = 0; i < 8; i++) {
@@ -238,9 +236,7 @@ export class CorePickup {
     if (Math.hypot(player.x - this.x, player.y - this.y) < player.radius + this.radius) {
       this.alive = false;
       player.carryingCore = true;
-      if (window.Telemetry) {
-        window.Telemetry.recordEvent('OBJECTIVE', 'Purifier Core retrieved! Deliver to Landmark.');
-      }
+      Telemetry.recordEvent('OBJECTIVE', 'Purifier Core retrieved! Deliver to Landmark.');
     }
   }
 
@@ -323,9 +319,7 @@ export class CorruptedNest {
         state.decalManager.addSplatter(this.x, this.y, { type: 'corrupt', radius: 40, count: 18 });
       }
 
-      if (window.Telemetry) {
-        window.Telemetry.recordEvent('WORLD', 'Corrupted Nest Cleansed!');
-      }
+      Telemetry.recordEvent('WORLD', 'Corrupted Nest Cleansed!');
 
       if (state.pickupManager) {
         for (let i = 0; i < 6; i++) {
@@ -351,7 +345,7 @@ export class CorruptedNest {
         const ex = this.x + Math.cos(a) * (this.radius + 20);
         const ey = this.y + Math.sin(a) * (this.radius + 20);
         const type = i % 3 === 0 ? 'dasher' : 'sprout';
-        state.enemyManager.enemies.push(new window.Enemy(ex, ey, type));
+        state.enemyManager.enemies.push(new Enemy(ex, ey, type));
       }
     }
   }
@@ -366,7 +360,7 @@ export class CorruptedNest {
       if (this.spawnTimer >= this.spawnInterval) {
         this.spawnTimer = 0;
         if (enemyManager.enemies.length < CONFIG.ENEMIES.maxActive) {
-          enemyManager.enemies.push(new window.Enemy(this.x + 40, this.y, 'stalker'));
+          enemyManager.enemies.push(new Enemy(this.x + 40, this.y, 'stalker'));
         }
       }
     }

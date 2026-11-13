@@ -1,66 +1,89 @@
-// js/weapons/manager.js — Менеджер слотов арсенала, авто-стрельбы и эволюций
+// js/weapons/manager.js — Менеджер арсеналу на 6 архетипах та еволюцій
 
 import { CONFIG } from '../config.js';
 import { state, triggerHitStop, spawnShockwave } from '../state.js';
-import { SporeCloud } from './projectiles.js';
-import { TechBlaster, ScrapSaw, BioSporeMortar, TeslaArc, AegisDrones, PlasmaPurifier } from './arsenal.js';
-import { VoltHurricane, BiomassIncinerator, HyperionTurret, StormSpore } from './evolutions.js';
+import { Telemetry } from '../telemetry.js';
+import { WEAPON_ARCHETYPES, EVOLUTIONS, createRunWeaponConfigs } from './catalog.js';
+import { GroundZone } from './projectiles.js';
+import { ProjectileWeapon, MortarWeapon, ChainWeapon } from './rangedArchetypes.js';
+import { OrbitalWeapon, ConeWeapon, AuraWeapon } from './meleeArchetypes.js';
 
 export class WeaponManager {
   constructor(owner) {
     this.owner = owner;
-    this.slots = [new TechBlaster(owner)];
     this.maxSlots = 6;
+    this.runConfigs = createRunWeaponConfigs();
+    this.slots = [this.createWeapon('blaster')];
     this.projectiles = [];
     this.mortarShells = [];
-    this.sporeClouds = [];
+    this.zones = [];
     this.particles = [];
+    this._updateCtx = {
+      projectiles: this.projectiles,
+      shells: this.mortarShells,
+      spawnParticles: (x, y) => this.spawnImpactParticles(x, y)
+    };
+  }
+
+  getConfig(key) {
+    return this.runConfigs[key] || null;
+  }
+
+  createWeapon(key) {
+    const cfg = this.runConfigs[key];
+    if (!cfg) return null;
+
+    switch (cfg.archetype) {
+      case WEAPON_ARCHETYPES.PROJECTILE: return new ProjectileWeapon(this.owner, cfg);
+      case WEAPON_ARCHETYPES.MORTAR:     return new MortarWeapon(this.owner, cfg);
+      case WEAPON_ARCHETYPES.ORBITAL:    return new OrbitalWeapon(this.owner, cfg);
+      case WEAPON_ARCHETYPES.CHAIN:      return new ChainWeapon(this.owner, cfg);
+      case WEAPON_ARCHETYPES.CONE:       return new ConeWeapon(this.owner, cfg);
+      case WEAPON_ARCHETYPES.AURA:       return new AuraWeapon(this.owner, cfg);
+      default:                           return null;
+    }
   }
 
   hasWeapon(name) {
-    return this.slots.some(w => w.name.toLowerCase().trim() === name.toLowerCase().trim());
+    const target = name.toLowerCase().trim();
+    return this.slots.some(w => w.name.toLowerCase().trim() === target);
   }
 
-  addWeapon(weaponInstance) {
-    if (this.slots.length < this.maxSlots) {
-      this.slots.push(weaponInstance);
-      return true;
-    }
-    return false;
+  addWeaponByKey(key) {
+    if (this.slots.length >= this.maxSlots) return false;
+    const weapon = this.createWeapon(key);
+    if (!weapon) return false;
+    this.slots.push(weapon);
+    return true;
   }
 
   evolveWeapons(evolutionKey) {
-    const evo = CONFIG.EVOLUTIONS[evolutionKey];
-    if (!evo) return false;
-
-    const hasAll = evo.ingredients.every(name => this.hasWeapon(name));
-    if (!hasAll) return false;
+    const evo = EVOLUTIONS[evolutionKey];
+    if (!evo || !evo.ingredients.every(name => this.hasWeapon(name))) return false;
 
     const lowerIngredients = evo.ingredients.map(n => n.toLowerCase().trim());
     this.slots = this.slots.filter(w => !lowerIngredients.includes(w.name.toLowerCase().trim()));
 
-    if (evo.resultWeapon === 'Volt Hurricane') this.slots.push(new VoltHurricane(this.owner));
-    else if (evo.resultWeapon === 'Biomass Incinerator') this.slots.push(new BiomassIncinerator(this.owner));
-    else if (evo.resultWeapon === 'Hyperion Turret') this.slots.push(new HyperionTurret(this.owner));
-    else if (evo.resultWeapon === 'Storm Spore') this.slots.push(new StormSpore(this.owner));
+    const evolved = this.createWeapon(evo.resultKey);
+    if (evolved) this.slots.push(evolved);
 
-    if (window.Telemetry) {
-      window.Telemetry.recordEvent('EVOLUTION', `WEAPON EVOLVED: ${evo.name}! Slot compressed.`);
-    }
+    Telemetry.recordEvent('EVOLUTION', `WEAPON EVOLVED: ${evo.name}! Slot compressed.`);
     return true;
   }
 
   reset() {
-    this.slots = [new TechBlaster(this.owner)];
-    this.projectiles = [];
-    this.mortarShells = [];
-    this.sporeClouds = [];
-    this.particles = [];
+    this.runConfigs = createRunWeaponConfigs();
+    this.slots = [this.createWeapon('blaster')];
+    this.projectiles.length = 0;
+    this.mortarShells.length = 0;
+    this.zones.length = 0;
+    this.particles.length = 0;
   }
 
   update(dt, enemies) {
-    for (const enemy of enemies) {
-      if (enemy.sporeSlowTimer && enemy.sporeSlowTimer > 0) {
+    for (let i = 0; i < enemies.length; i++) {
+      const enemy = enemies[i];
+      if (enemy.sporeSlowTimer > 0) {
         enemy.sporeSlowTimer -= dt;
         enemy.currentSlow = enemy.sporeSlowMult || 0.55;
       } else {
@@ -68,67 +91,25 @@ export class WeaponManager {
       }
     }
 
-    for (const weapon of this.slots) {
-      if (weapon instanceof ScrapSaw || weapon instanceof TeslaArc || weapon instanceof AegisDrones ||
-          weapon instanceof VoltHurricane || weapon instanceof BiomassIncinerator ||
-          weapon instanceof HyperionTurret || weapon instanceof StormSpore) {
-        weapon.update(dt, enemies, this.projectiles, (x, y) => this.spawnImpactParticles(x, y));
-      } else if (weapon instanceof BioSporeMortar) {
-        weapon.update(dt, enemies, this.mortarShells);
-      } else if (weapon instanceof PlasmaPurifier) {
-        weapon.update(dt, enemies);
-      } else {
-        weapon.update(dt, enemies, this.projectiles);
-      }
+    for (let i = 0; i < this.slots.length; i++) {
+      this.slots[i].update(dt, enemies, this._updateCtx);
     }
 
     for (let i = this.mortarShells.length - 1; i >= 0; i--) {
       const shell = this.mortarShells[i];
-      shell.update(dt, (tx, ty, impactDmg, cloudRadius, cfg) => {
-        this.detonateSporeShell(tx, ty, impactDmg, cloudRadius, cfg, enemies);
-      });
+      shell.update(dt, (tx, ty, cfg, mult) => this.detonateShell(tx, ty, cfg, mult, enemies));
       if (!shell.alive) this.mortarShells.splice(i, 1);
     }
 
-    for (let i = this.sporeClouds.length - 1; i >= 0; i--) {
-      const cloud = this.sporeClouds[i];
-      cloud.update(dt, enemies);
-      if (!cloud.alive) this.sporeClouds.splice(i, 1);
+    for (let i = this.zones.length - 1; i >= 0; i--) {
+      const z = this.zones[i];
+      z.update(dt, enemies, this.owner, this._updateCtx.spawnParticles);
+      if (!z.alive) this.zones.splice(i, 1);
     }
 
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
-      p.update(dt);
-
-      let hitWall = false;
-      if (state.worldManager && state.worldManager.obstacles) {
-        for (const wall of state.worldManager.obstacles) {
-          if (Math.abs(wall.x - p.x) < 220 && Math.abs(wall.y - p.y) < 220) {
-            if (wall.intersectsProjectile ? wall.intersectsProjectile(p, dt) : wall.intersectsPoint(p.x, p.y)) {
-              p.alive = false;
-              this.spawnImpactParticles(p.x, p.y);
-              hitWall = true;
-              break;
-            }
-          }
-        }
-      }
-
-      if (hitWall) {
-        this.projectiles.splice(i, 1);
-        continue;
-      }
-
-      for (const enemy of enemies) {
-        if (!enemy.alive) continue;
-        if (Math.hypot(p.x - enemy.x, p.y - enemy.y) < p.size + enemy.radius) {
-          enemy.takeDamage(p.damage, p.x - p.vx, p.y - p.vy);
-          this.spawnImpactParticles(p.x, p.y);
-          p.alive = false;
-          break;
-        }
-      }
-
+      p.update(dt, enemies, this._updateCtx.spawnParticles);
       if (!p.alive) this.projectiles.splice(i, 1);
     }
 
@@ -141,54 +122,81 @@ export class WeaponManager {
     }
   }
 
-  detonateSporeShell(x, y, impactDmg, radius, cfg, enemies) {
+  detonateShell(x, y, cfg, mult, enemies) {
+    const radius = cfg.zoneRadius || 65;
+    const impactDmg = cfg.damage * mult;
+    const grid = state.enemyManager && state.enemyManager.grid;
     let killCount = 0;
-    for (const enemy of enemies) {
-      if (!enemy.alive) continue;
-      if (Math.hypot(enemy.x - x, enemy.y - y) <= radius + enemy.radius) {
-        const wasAlive = enemy.alive;
-        enemy.takeDamage(impactDmg, x, y);
-        if (wasAlive && !enemy.alive) killCount++;
+
+    const applyHit = (list) => {
+      for (let i = 0; i < list.length; i++) {
+        const enemy = list[i];
+        if (!enemy.alive) continue;
+        if (Math.hypot(enemy.x - x, enemy.y - y) <= radius + enemy.radius) {
+          const wasAlive = enemy.alive;
+          enemy.takeDamage(impactDmg, x, y);
+          if (wasAlive && !enemy.alive) killCount++;
+        }
       }
+    };
+
+    if (grid) {
+      applyHit(grid.getNearby(x, y, radius + 35));
+      if (state.worldManager && state.worldManager.nests) applyHit(state.worldManager.nests);
+    } else {
+      applyHit(enemies);
     }
 
+    const isAsh = cfg.theme === 'ash';
     const isMultiKill = killCount >= 3;
-    const bonusScale = isMultiKill ? Math.min(1.6, 1.0 + (killCount * 0.08)) : 1.0;
-    spawnShockwave(x, y, { radius: 10, maxRadius: (radius * 1.3) * bonusScale, color: isMultiKill ? '#9ae6b4' : '#48bb78', speed: 340 * bonusScale, lineWidth: 7 });
+    const bonusScale = isMultiKill ? Math.min(1.65, 1.0 + killCount * 0.08) : 1.0;
 
-    if (state.camera) state.camera.addTrauma(0.34);
-    triggerHitStop(0.028);
+    spawnShockwave(x, y, {
+      radius: isAsh ? 14 : 10,
+      maxRadius: radius * (isAsh ? 1.4 : 1.3) * bonusScale,
+      color: isAsh ? (isMultiKill ? '#fed7aa' : '#f6ad55') : (isMultiKill ? '#9ae6b4' : '#48bb78'),
+      speed: (isAsh ? 380 : 340) * bonusScale,
+      lineWidth: 7
+    });
+
+    if (state.camera) state.camera.addTrauma(isAsh ? CONFIG.JUICE.trauma.incineratorExplosion : CONFIG.JUICE.trauma.mortarExplosion);
+    triggerHitStop(isAsh ? CONFIG.JUICE.hitStop.incineratorExplosion : CONFIG.JUICE.hitStop.mortarExplosion);
 
     if (state.decalManager) {
-      state.decalManager.addSplatter(x, y, { type: 'slime', radius: radius * 0.6 * bonusScale, count: 12 + killCount * 2 });
-      state.decalManager.addScorch(x, y, radius * 0.45 * bonusScale);
+      state.decalManager.addScorch(x, y, radius * (isAsh ? 0.75 : 0.45) * bonusScale);
+      state.decalManager.addSplatter(x, y, {
+        type: isAsh ? 'amber' : 'slime',
+        radius: radius * (isAsh ? 0.45 : 0.6) * bonusScale,
+        count: 12 + killCount * 2
+      });
     }
 
-    this.sporeClouds.push(new SporeCloud(x, y, radius, cfg.cloudDuration, cfg.dotDamage * (this.owner.godMode ? 15 : 1), cfg.dotTickRate, cfg.slowFactor));
-    for (let i = 0; i < 18; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 40 + Math.random() * 120;
-      this.particles.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 0.45, maxLife: 0.45, color: 'rgba(104, 211, 145,' });
+    this.zones.push(new GroundZone(x, y, cfg, mult));
+    for (let i = 0; i < 16; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const spd = 40 + Math.random() * 120;
+      this.particles.push({ x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, life: 0.42, maxLife: 0.42, color: isAsh ? 'rgba(246, 173, 85,' : 'rgba(104, 211, 145,' });
     }
   }
 
   spawnImpactParticles(x, y) {
     for (let i = 0; i < 5; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 60 + Math.random() * 100;
-      this.particles.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, life: 0.2, maxLife: 0.2, color: 'rgba(99, 179, 237,' });
+      const a = Math.random() * Math.PI * 2;
+      const spd = 60 + Math.random() * 100;
+      this.particles.push({ x, y, vx: Math.cos(a) * spd, vy: Math.sin(a) * spd, life: 0.2, maxLife: 0.2, color: 'rgba(99, 179, 237,' });
     }
   }
 
   render(ctx) {
-    for (const cloud of this.sporeClouds) cloud.render(ctx);
-    for (const shell of this.mortarShells) shell.render(ctx);
-    for (const p of this.projectiles) p.render(ctx);
-    for (const w of this.slots) w.render(ctx);
+    for (let i = 0; i < this.zones.length; i++) this.zones[i].render(ctx);
+    for (let i = 0; i < this.mortarShells.length; i++) this.mortarShells[i].render(ctx);
+    for (let i = 0; i < this.projectiles.length; i++) this.projectiles[i].render(ctx);
+    for (let i = 0; i < this.slots.length; i++) this.slots[i].render(ctx);
 
-    for (const pt of this.particles) {
+    for (let i = 0; i < this.particles.length; i++) {
+      const pt = this.particles[i];
       const alpha = Math.max(0, pt.life / pt.maxLife);
-      ctx.fillStyle = pt.color.endsWith(',') ? `${pt.color} ${alpha})` : pt.color;
+      ctx.fillStyle = `${pt.color} ${alpha})`;
       ctx.fillRect(pt.x - 1.5, pt.y - 1.5, 3, 3);
     }
   }

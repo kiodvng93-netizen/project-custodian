@@ -2,6 +2,7 @@
 
 import { CONFIG } from '../config.js';
 import { state } from '../state.js';
+import { Telemetry } from '../telemetry.js';
 import { SpatialGrid } from './grid.js';
 import { Enemy } from './enemy.js';
 
@@ -128,7 +129,7 @@ export class EnemyManager {
   }
 
   triggerAmbushSwarm(player, canvasWidth, canvasHeight) {
-    if (window.Telemetry) window.Telemetry.recordEvent('SURGE', 'Swarm Ambush surrounding!');
+    Telemetry.recordEvent('SURGE', 'Swarm Ambush surrounding!');
     const count = 16;
     const spawnDist = Math.hypot(canvasWidth / 2, canvasHeight / 2) + 80;
 

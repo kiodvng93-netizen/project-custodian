@@ -2,6 +2,7 @@
 
 import { CONFIG } from '../config.js';
 import { state, triggerHitStop, spawnShockwave } from '../state.js';
+import { Telemetry } from '../telemetry.js';
 
 export class Enemy {
   constructor(x, y, typeKey = 'sprout') {
@@ -51,10 +52,10 @@ export class Enemy {
 
     if (this.typeKey === 'warden' && !this.isAwakened) {
       this.isAwakened = true;
-      if (window.Telemetry) window.Telemetry.recordEvent('BOSS', 'Hive Warden provoked!');
+      Telemetry.recordEvent('BOSS', 'Hive Warden provoked!');
     }
 
-    if (window.Telemetry) window.Telemetry.metrics.damageDealt += amount;
+    Telemetry.metrics.damageDealt += amount;
 
     const displayDamage = Math.round(amount);
     if (state.damageTexts && displayDamage > 0) {
@@ -83,10 +84,8 @@ export class Enemy {
         }
       }
 
-      if (window.Telemetry) {
-        window.Telemetry.metrics.kills++;
-        window.Telemetry.recordEvent('KILL', `${this.name} destroyed!`);
-      }
+      Telemetry.metrics.kills++;
+      Telemetry.recordEvent('KILL', `${this.name} destroyed!`);
 
       if (this.typeKey === 'warden') {
         spawnShockwave(this.x, this.y, { radius: 25, maxRadius: 280, color: '#f687b3', speed: 420, lineWidth: 9 });
@@ -165,7 +164,7 @@ export class Enemy {
     if (!this.isAwakened) {
       if (dist < CONFIG.WORLD.wardenAggroRadius) {
         this.isAwakened = true;
-        if (window.Telemetry) window.Telemetry.recordEvent('BOSS', 'Hive Warden awakened in lair!');
+        Telemetry.recordEvent('BOSS', 'Hive Warden awakened in lair!');
       } else return;
     }
 
@@ -261,5 +260,3 @@ export class Enemy {
     ctx.restore();
   }
 }
-
-window.Enemy = Enemy;

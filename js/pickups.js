@@ -1,4 +1,9 @@
-class Pickup {
+// js/pickups.js — Лут (Bio-Essence, Tech Scrap) і магнітний підбір (ES Module)
+
+import { CONFIG } from './config.js';
+import { Telemetry } from './telemetry.js';
+
+export class Pickup {
   constructor(x, y, type = 'bio', value = 1) {
     this.x = x;
     this.y = y;
@@ -13,32 +18,33 @@ class Pickup {
   }
 
   update(dt, player) {
-    const dist = Math.hypot(player.x - this.x, player.y - this.y);
+    const dx = player.x - this.x;
+    const dy = player.y - this.y;
+    const dist = Math.hypot(dx, dy);
 
-    if (dist <= window.CONFIG.PLAYER.pickupRadius) {
+    if (dist <= CONFIG.PLAYER.pickupRadius) {
       this.isMagnetized = true;
     }
 
     if (this.isMagnetized) {
-      const angle = Math.atan2(player.y - this.y, player.x - this.x);
-
+      const angle = Math.atan2(dy, dx);
       this.homingSpeed = Math.min(
-        this.homingSpeed + window.CONFIG.PICKUPS.magnetAcceleration * dt * 1.5,
+        this.homingSpeed + CONFIG.PICKUPS.magnetAcceleration * dt * 1.5,
         900
       );
 
       this.vx = Math.cos(angle) * this.homingSpeed;
       this.vy = Math.sin(angle) * this.homingSpeed;
 
-      // Anti-tunneling snap: absorbs instantly if within step distance
       const stepDistance = this.homingSpeed * dt;
       if (dist <= stepDistance + this.radius + player.radius) {
         this.collect();
         return;
       }
     } else {
-      this.vx *= 0.90;
-      this.vy *= 0.90;
+      const friction = Math.pow(0.90, dt * 60);
+      this.vx *= friction;
+      this.vy *= friction;
     }
 
     this.x += this.vx * dt;
@@ -48,25 +54,28 @@ class Pickup {
   collect() {
     this.alive = false;
     if (this.type === 'bio') {
-      window.Telemetry.metrics.resourcesCollected.bioEssence += this.value;
-      window.Telemetry.recordEvent('LOOT', `+${this.value} Bio-Essence collected!`);
+      Telemetry.metrics.resourcesCollected.bioEssence += this.value;
+      Telemetry.recordEvent('LOOT', `+${this.value} Bio-Essence collected!`);
     } else {
-      window.Telemetry.metrics.resourcesCollected.techScrap += this.value;
-      window.Telemetry.recordEvent('LOOT', `+${this.value} Tech Scrap collected!`);
+      Telemetry.metrics.resourcesCollected.techScrap += this.value;
+      Telemetry.recordEvent('LOOT', `+${this.value} Tech Scrap collected!`);
     }
   }
 
-  render(ctx) {
+  render(ctx, spriteManager = null) {
+    const spriteKey = this.type === 'bio' ? 'pickup_bio' : 'pickup_tech';
+    if (spriteManager && spriteManager.drawCentered(ctx, spriteKey, this.x, this.y, 18)) {
+      return;
+    }
+
     ctx.save();
     ctx.translate(this.x, this.y);
-
     const pulse = Math.sin(performance.now() / 200) * 1.5;
 
     if (this.type === 'bio') {
       ctx.fillStyle = '#48bb78';
       ctx.strokeStyle = '#9ae6b4';
       ctx.lineWidth = 1.5;
-
       ctx.beginPath();
       ctx.moveTo(0, -this.radius - pulse);
       ctx.lineTo(this.radius + pulse, 0);
@@ -84,7 +93,7 @@ class Pickup {
   }
 }
 
-class PickupManager {
+export class PickupManager {
   constructor() {
     this.pickups = [];
   }
@@ -102,11 +111,9 @@ class PickupManager {
     }
   }
 
-  render(ctx) {
-    for (const p of this.pickups) {
-      p.render(ctx);
+  render(ctx, spriteManager = null) {
+    for (let i = 0; i < this.pickups.length; i++) {
+      this.pickups[i].render(ctx, spriteManager);
     }
   }
 }
-
-window.PickupManager = PickupManager;
