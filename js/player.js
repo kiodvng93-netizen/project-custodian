@@ -133,15 +133,17 @@ export class Player {
     spawnShockwave(this.x, this.y, { radius: 8, maxRadius: 55, color: '#63b3ed', speed: 280, lineWidth: 3.5 });
   }
 
+  // Повертає кількість отриманих рівнів (одна велика порція XP може дати кілька)
   addXP(amount) {
     this.xp += amount;
-    if (this.xp >= this.xpToNext) {
+    let levels = 0;
+    while (this.xp >= this.xpToNext) {
       this.xp -= this.xpToNext;
       this.level++;
       this.xpToNext = Math.floor(this.xpToNext * 1.25) + 2;
-      return true;
+      levels++;
     }
-    return false;
+    return levels;
   }
 
   grow() {

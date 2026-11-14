@@ -15,7 +15,7 @@ import { PixiWeaponsRenderer } from './render/pixiWeapons.js';
 import { WorldManager } from './world/manager.js';
 import { renderOutpostHUD } from './world/outpost.js';
 import { WeaponManager } from './weapons/manager.js';
-import { generateDraftCards } from './weapons/upgrades.js';
+import { queueLevelUps, updateDraftQueue, selectCard, resetDraftQueue } from './draft.js';
 import { Player } from './player.js';
 import { EnemyManager } from './enemies/manager.js';
 import {
@@ -81,8 +81,7 @@ setRunRestartHandler(() => {
   state.gibManager.clear();
 
   // Смерть під час драфту/Воркшопу не має переносити меню й уповільнення в новий забіг
-  state.isDrafting = false;
-  state.draftCards = [];
+  resetDraftQueue();
   state.isWorkshopOpen = false;
   state.isPaused = false;
   state.timeScale = 1.0;
@@ -96,7 +95,6 @@ setRunRestartHandler(() => {
   state.shockwaves.length = 0;
   camera.x = 0; camera.y = 0; camera.trauma = 0;
   state.hitStopTimer = 0;
-  state.pendingLevelUps = 0;
 });
 
 function resizeCanvas() {
@@ -113,25 +111,6 @@ const WORKSHOP_PERKS = [
   { key: 'naniteScavenge', title: 'NANITE HARVESTER', costBase: 6, costScale: 5, desc: '+1 Extra Tech Scrap from Nests', buy: () => {} },
   { key: 'cargoSecurity', title: 'HOLD SECURITY', maxRank: 2, costBase: 5, costScale: 5, desc: 'Reduce scrap lost on death (50% → 40% → 25%)', buy: () => {} }
 ];
-
-function triggerLevelUp() {
-  if (state.runEnd) return;
-  if (state.isDrafting) { state.pendingLevelUps++; return; }
-  state.isDrafting = true;
-  state.timeScale = 0.08;
-  state.draftCards = generateDraftCards(state.weaponManager, 3);
-  Telemetry.recordEvent('LEVEL', `Robot reached Level ${state.player.level}!`);
-}
-
-function selectCard(index) {
-  if (!state.isDrafting || !state.draftCards[index]) return;
-  state.draftCards[index].apply();
-  state.player.grow();
-  state.isDrafting = false;
-  state.timeScale = 1.0;
-  Telemetry.recordEvent('UPGRADE', `Equipped: ${state.draftCards[index].title}`);
-  if (state.pendingLevelUps > 0) { state.pendingLevelUps--; setTimeout(triggerLevelUp, 120); }
-}
 
 function buyWorkshopPerk(perk) {
   const rank = MetaProgression.perks[perk.key] || 0;
@@ -380,8 +359,9 @@ function gameLoop(currentTimestamp) {
     for (let i = state.pickupManager.pickups.length - 1; i >= 0; i--) {
       const p = state.pickupManager.pickups[i];
       p.update(dt, state.player);
-      if (!p.alive) { if (p.type === 'bio' && state.player.addXP(p.value)) triggerLevelUp(); state.pickupManager.pickups.splice(i, 1); }
+      if (!p.alive) { if (p.type === 'bio') queueLevelUps(state.player.addXP(p.value)); state.pickupManager.pickups.splice(i, 1); }
     }
+    updateDraftQueue(dt);
     if (state.damageTexts.length > 60) state.damageTexts.splice(0, state.damageTexts.length - 60);
     for (let i = state.damageTexts.length - 1; i >= 0; i--) { state.damageTexts[i].y -= 30 * dt; state.damageTexts[i].life -= dt; if (state.damageTexts[i].life <= 0) state.damageTexts.splice(i, 1); }
     camera.update(rawDt, state.player.x, state.player.y);

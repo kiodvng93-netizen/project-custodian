@@ -150,7 +150,21 @@ export function renderXPBar(ctx, canvas, state) {
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 12px monospace';
   ctx.textAlign = 'center';
-  ctx.fillText(`LVL ${state.player.level} [${state.player.xp} / ${state.player.xpToNext} ESSENCE]`, canvas.width / 2, barY + 24);
+  const lvlText = `LVL ${state.player.level} [${state.player.xp} / ${state.player.xpToNext} ESSENCE]`;
+  // Накопичені рівні чекають на своє вікно драфту (js/draft.js) — дописуємо в той самий рядок
+  const pending = state.isDrafting ? 0 : state.pendingLevelUps;
+  if (pending > 0) {
+    const tag = `  ▲ +${pending} UPGRADE${pending > 1 ? 'S' : ''}`;
+    const wMain = ctx.measureText(lvlText).width, wTag = ctx.measureText(tag).width;
+    const left = canvas.width / 2 - (wMain + wTag) / 2;
+    ctx.textAlign = 'left';
+    ctx.fillText(lvlText, left, barY + 24);
+    ctx.fillStyle = Math.floor(performance.now() / 300) % 2 === 0 ? '#f6e05e' : '#ecc94b';
+    ctx.fillText(tag, left + wMain, barY + 24);
+    ctx.textAlign = 'center';
+  } else {
+    ctx.fillText(lvlText, canvas.width / 2, barY + 24);
+  }
 }
 
 export function renderDraftOverlay(ctx, canvas, state) {

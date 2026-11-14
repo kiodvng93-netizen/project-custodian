@@ -21,7 +21,8 @@ export class Enemy {
     this.speedScale = speedMult;
     this.maxHealth = Math.round(cfg.hp * hpMult);
     this.health = this.maxHealth;
-    this.speed = cfg.speed * speedMult;
+    const speedCap = cfg.maxSpeedRatio ? CONFIG.PLAYER.baseSpeed * cfg.maxSpeedRatio : Infinity;
+    this.speed = Math.min(cfg.speed * speedMult, speedCap);
     this.damage = Math.round(cfg.damage * dmgMult);
     this.radius = cfg.radius;
     this.color = cfg.color;

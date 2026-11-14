@@ -31,6 +31,11 @@ export const CONFIG = {
     healReward: 20,
   },
 
+  DRAFT: {
+    minInterval: 3.0,      // мін. секунд гри між вікнами драфту, коли рівні накопичились
+    bulletTimeScale: 0.08, // уповільнення часу під час вибору картки
+  },
+
   // Фінал забігу: евакуація з відновленого Пурифаєра (зона утримання = terraformedRadius)
   EVAC: {
     duration: 60,          // секунд утримання в зоні маяка
@@ -158,23 +163,25 @@ export const CONFIG = {
         maxSpeedMult: 1.55,
       },
     },
+    // maxSpeedRatio: стеля швидкості після ескалації, частка від PLAYER.baseSpeed.
+    // Звичайні вороги лишаються повільнішими за гравця; швидка загроза — лише Dasher (< Cruise 1.45).
     types: {
       sprout: {
-        name: 'Corrupted Sprout', hp: 44, speed: 158, damage: 16, radius: 15,
+        name: 'Corrupted Sprout', hp: 44, speed: 158, damage: 16, radius: 15, maxSpeedRatio: 0.95,
         color: '#9b2c2c', outline: '#fc8181', xpValue: 1
       },
       stalker: {
-        name: 'Thorn Stalker', hp: 165, speed: 118, damage: 28, radius: 23,
+        name: 'Thorn Stalker', hp: 165, speed: 118, damage: 28, radius: 23, maxSpeedRatio: 0.85,
         color: '#551a1a', outline: '#e53e3e', xpValue: 3,
         windupTime: 0.22, attackDuration: 0.15, attackCooldown: 0.65,
         attackRange: 84, lungeSpeed: 420
       },
       dasher: {
-        name: 'Spore Dasher', hp: 30, speed: 230, damage: 15, radius: 12,
+        name: 'Spore Dasher', hp: 30, speed: 230, damage: 15, radius: 12, maxSpeedRatio: 1.4,
         color: '#dd6b20', outline: '#fbd38d', xpValue: 1
       },
       warden: {
-        name: 'Hive Warden', hp: 1550, speed: 125, chargeSpeed: 430, damage: 38, radius: 32,
+        name: 'Hive Warden', hp: 1550, speed: 125, chargeSpeed: 430, damage: 38, radius: 32, maxSpeedRatio: 0.8,
         color: '#702459', outline: '#f687b3', xpValue: 15,
         windupTime: 0.42, aimLockTime: 0.22, chargeDuration: 0.85, chargeCooldown: 2.8
       }

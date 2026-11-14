@@ -24,6 +24,7 @@ export function endRun(outcome, { banked = 0, lost = 0, bonus = 0 } = {}) {
   };
   state.isDrafting = false;
   state.draftCards = [];
+  state.pendingLevelUps = 0;
   state.isWorkshopOpen = false;
   state.isPaused = false;
   state.timeScale = 1.0;

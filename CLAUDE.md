@@ -10,12 +10,14 @@ Open problems and priorities are listed in `docs/AUDIT-2026-11-14.md` (§2 bugs,
 
 ## Run
 - Static files only. Serve the repo root over HTTP. Opening `index.html` via `file://` breaks ES modules and image processing.
-  - VS Code Live Server → `http://127.0.0.1:5500`, or `python -m http.server 8123`.
+  - VS Code Live Server → `http://127.0.0.1:5500`, or the `custodian` config in `.claude/launch.json` (port 8123, sends `Cache-Control: no-store`). Plain `python -m http.server` lets the browser cache old ES modules, so edits silently don't load.
+- Balance checks: a page-console script can import the live modules (`await import('/js/state.js')`), set `state.isPaused = true`, then step `player/world/enemy/weapon` updates in a loop with a bot moving `player.keys`. That fast-forwards minutes of play in seconds, and it is how the XP and speed numbers in `PROJECT_STATE.md` were measured.
 - PixiJS v8 comes from jsDelivr via the import map in `index.html`, **pinned to an exact version**. Don't change it to `@8`.
 - Dev keys: `` ` `` / `F2` telemetry HUD, `G` god mode, `T` stress swarm, `Esc`/`P` pause.
 
 ## Architecture
-- `js/main.js`: boot, game loop, input, Workshop perk list, draft flow, HUD composition.
+- `js/main.js`: boot, game loop, input, Workshop perk list, HUD composition.
+- `js/draft.js`: level-up queue and card drafts. Level-ups queue in `state.pendingLevelUps`, and drafts open at most every `CONFIG.DRAFT.minInterval` seconds of game time.
 - `js/config.js`: all balance numbers and the meta save (`localStorage` key `custodian_meta_save`, versioned, with migration in `loadMetaProgression`). **Treat `CONFIG` as read-only.** Per-run values belong on the player, `WeaponManager.runConfigs`, or `state`.
 - `js/state.js`: the single run-state object, shockwaves, hit-stop, restart callback. Modules share data through `state`; there are no `window.*` globals.
 - Simulation: `player.js`, `pickups.js`, `enemies/` (Enemy, EnemyManager waves, SpatialGrid), `weapons/` (catalog, upgrades/draft, 6 archetypes, projectiles, manager), `world/` (WorldManager, structures, sanctuary hub, outposts, evac beacon, objective chain, minimap).
