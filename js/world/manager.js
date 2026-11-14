@@ -4,11 +4,12 @@ import { CONFIG, MetaProgression, saveMetaProgression } from '../config.js';
 import { state, spawnShockwave } from '../state.js';
 import { Telemetry } from '../telemetry.js';
 import { endRun } from '../run.js';
-import { ObstacleWall, LootChest, Landmark, CorePickup, CorruptedNest } from './structures.js';
+import { Landmark, CorePickup } from './structures.js';
 import { SanctuaryHub } from './sanctuary.js';
-import { InsuranceOutpost } from './outpost.js';
 import { EvacBeacon } from './evac.js';
 import { renderRadarMinimap } from './minimap.js';
+import { TerraformSites } from './terraform.js';
+import { generateRunLayout } from './generation.js';
 
 export class WorldManager {
   constructor() {
@@ -21,123 +22,19 @@ export class WorldManager {
     this.sanctuary = new SanctuaryHub();
     this.coreDrop = null;
     this.evac = new EvacBeacon(this.landmark);
+    this.terraform = new TerraformSites(); // постійні ділянки — до генерації випадкового наповнення
 
     this._obstacleCellSize = 320;
     this._obstacleGrid = new Map();
     this._wallQueryToken = 0;
-    this._ruinCenters = [];
 
-    this.spawnInitialNests();
-    this.spawnRuins();
-    this.buildObstacleGrid();
-    this.spawnChests();
-    this.spawnOutposts();
+    generateRunLayout(this); // випадкове наповнення цього забігу (js/world/generation.js)
     this.initialNestCount = this.nests.length;
   }
 
   // Поле Пурифаєра знищує ворогів у зоні — але не під час евакуації
   isPurifierFieldActive() {
     return this.landmark.repaired && !this.evac.isActive;
-  }
-
-  isClearOfPOIs(x, y, nestPad = 240) {
-    const lm = CONFIG.WORLD.landmarkPos;
-    const wp = CONFIG.WORLD.wardenPos;
-    if (x * x + y * y < 750 * 750) return false;
-    if (Math.hypot(x - lm.x, y - lm.y) < 420) return false;
-    if (Math.hypot(x - wp.x, y - wp.y) < 450) return false;
-    for (let i = 0; i < this.nests.length; i++) {
-      if (Math.hypot(x - this.nests[i].x, y - this.nests[i].y) < nestPad) return false;
-    }
-    return true;
-  }
-
-  spawnInitialNests() {
-    const count = CONFIG.WORLD.nestCountRing1;
-    const maxDist = CONFIG.WORLD.ring1Radius * 0.9;
-    const minDist = 1500;
-    const pool = [];
-    const poolSize = count * 2;
-
-    for (let i = 0; i < poolSize * 4 && pool.length < poolSize; i++) {
-      const band = (i % 3) / 3;
-      const angle = Math.random() * Math.PI * 2;
-      const dist = minDist + (band + Math.random() * 0.34) * (maxDist - minDist);
-      const nx = Math.cos(angle) * dist, ny = Math.sin(angle) * dist;
-      if (!this.isClearOfPOIs(nx, ny, 0)) continue;
-      if (pool.some(p => Math.hypot(nx - p.x, ny - p.y) < 1800)) continue;
-      pool.push({ x: nx, y: ny });
-    }
-
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
-    }
-
-    const activeCount = Math.min(count, pool.length);
-    for (let i = 0; i < activeCount; i++) {
-      const pt = pool[i];
-      this.nests.push(new CorruptedNest(pt.x, pt.y));
-      if (i % 2 === 0) this.obstacles.push(new ObstacleWall(pt.x - 70, pt.y - 115, 140, 24));
-    }
-  }
-
-  spawnRuins() {
-    const clusterCount = CONFIG.WORLD.ruinsClusterCount || 40;
-    const maxDist = CONFIG.WORLD.ring1Radius * 0.92;
-
-    for (let c = 0; c < clusterCount; c++) {
-      const angle = (c * Math.PI * 2) / clusterCount + (Math.random() - 0.5) * 0.4;
-      const dist = 900 + Math.random() * (maxDist - 900);
-      const cx = Math.cos(angle) * dist, cy = Math.sin(angle) * dist;
-      if (!this.isClearOfPOIs(cx, cy, 220)) continue;
-
-      const w1 = 90 + Math.random() * 80, h1 = 26 + Math.random() * 10;
-      this.obstacles.push(new ObstacleWall(cx - w1 / 2, cy - h1 / 2, w1, h1));
-      const w2 = 26 + Math.random() * 10, h2 = 80 + Math.random() * 70;
-      this.obstacles.push(new ObstacleWall(cx + (Math.random() > 0.5 ? 50 : -50), cy - h2 / 2, w2, h2));
-      this._ruinCenters.push({ x: cx, y: cy });
-    }
-
-    const lm = this.landmark;
-    this.obstacles.push(new ObstacleWall(lm.x - 140, lm.y - 120, 280, 28));
-    this.obstacles.push(new ObstacleWall(lm.x - 140, lm.y + 92, 280, 28));
-    this.obstacles.push(new ObstacleWall(lm.x - 140, lm.y - 92, 28, 184));
-  }
-
-  spawnChests() {
-    const chestChance = CONFIG.WORLD.chestSpawnChance || 0.65;
-    const lm = this.landmark;
-    if (this.isCircleClearOfWalls(lm.x + 80, lm.y, 24)) this.chests.push(new LootChest(lm.x + 80, lm.y));
-
-    for (let i = 0; i < this._ruinCenters.length; i++) {
-      if (Math.random() >= chestChance) continue;
-      const center = this._ruinCenters[i];
-      for (let attempt = 0; attempt < 10; attempt++) {
-        const a = Math.random() * Math.PI * 2, r = 75 + Math.random() * 55;
-        const tx = center.x + Math.cos(a) * r, ty = center.y + Math.sin(a) * r;
-        if (this.isCircleClearOfWalls(tx, ty, 28) && this.isClearOfPOIs(tx, ty, 90)) {
-          this.chests.push(new LootChest(tx, ty));
-          break;
-        }
-      }
-    }
-  }
-
-  spawnOutposts() {
-    const count = CONFIG.WORLD.outpostCount || 3;
-    const baseAngle = Math.random() * Math.PI * 2;
-    for (let i = 0; i < count; i++) {
-      for (let attempt = 0; attempt < 16; attempt++) {
-        const angle = baseAngle + (i * Math.PI * 2) / count + (Math.random() - 0.5) * 0.45;
-        const dist = 4200 + Math.random() * 4800;
-        const ox = Math.cos(angle) * dist, oy = Math.sin(angle) * dist;
-        if (this.isCircleClearOfWalls(ox, oy, 75) && this.isClearOfPOIs(ox, oy, 320)) {
-          this.outposts.push(new InsuranceOutpost(ox, oy));
-          break;
-        }
-      }
-    }
   }
 
   buildObstacleGrid() {
@@ -286,14 +183,19 @@ export class WorldManager {
 
     for (let i = this.nests.length - 1; i >= 0; i--) {
       this.nests[i].update(dt, player, enemyManager);
-      if (!this.nests[i].alive) this.nests.splice(i, 1);
+      if (!this.nests[i].alive) {
+        this.nests.splice(i, 1);
+        this.terraform.recordNestCleansed();
+      }
     }
     if (this.coreDrop && this.coreDrop.alive) this.coreDrop.update(player);
     if (player.carryingCore && !this.landmark.repaired) {
       if (Math.hypot(player.x - this.landmark.x, player.y - this.landmark.y) < player.radius + this.landmark.radius) {
         this.landmark.repair(player);
+        this.terraform.recordPurifierRestored();
       }
     }
+    this.terraform.update(dt);
     if (this.evac.update(dt, player, enemyManager)) this.completeEvac();
   }
 

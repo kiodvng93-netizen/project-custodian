@@ -20,6 +20,7 @@ export function endRun(outcome, { banked = 0, lost = 0, bonus = 0 } = {}) {
     wave: state.enemyManager.waveNumber,
     nestsCleansed: wm.initialNestCount - wm.nests.length,
     nestsTotal: wm.initialNestCount,
+    terraform: wm.terraform.summary(),
     shownAt: performance.now(),
   };
   state.isDrafting = false;

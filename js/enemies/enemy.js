@@ -156,7 +156,9 @@ export class Enemy {
 
   moveWithSeparation(dt, dx, dy, dist, enemies) {
     if (dist <= 1) return;
-    const effectiveSpeed = this.speed * (this.currentSlow || 1.0);
+    // Відновлена земля (тераформування) сповільнює ворогів
+    const groundMult = state.worldManager.terraform.enemySpeedMultAt(this.x, this.y);
+    const effectiveSpeed = this.speed * (this.currentSlow || 1.0) * groundMult;
     let vx = (dx / dist) * effectiveSpeed;
     let vy = (dy / dist) * effectiveSpeed;
     const neighbors = (state.enemyManager && state.enemyManager.grid) ? state.enemyManager.grid.getNearby(this.x, this.y, this.radius * 2.5) : enemies;

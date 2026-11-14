@@ -10,8 +10,10 @@ import { updateRobotTracks, resetGore } from './gore.js';
 import { SpriteManager } from './sprites.js';
 import { PickupManager } from './pickups.js';
 import { renderWorldGrid, renderSanctuaryHub } from './render/environment.js';
+import { renderReclaimedGround } from './render/reclaimedGround.js';
 import { PixiCore } from './render/pixiCore.js';
 import { PixiWorldRenderer } from './render/pixiWorld.js';
+import { PixiTerraformRenderer } from './render/pixiTerraform.js';
 import { PixiEntitiesRenderer } from './render/pixiEntities.js';
 import { PixiWeaponsRenderer } from './render/pixiWeapons.js';
 import { WorldManager } from './world/manager.js';
@@ -29,7 +31,10 @@ import {
   renderPauseMenu,
   renderSanctuaryHUD
 } from './render/ui.js';
-import { renderObjectiveArrow, renderEvacHUD, renderRunEndOverlay, renderHiveAlertHUD } from './render/runUI.js';
+import {
+  renderObjectiveArrow, renderEvacHUD, renderRunEndOverlay, renderHiveAlertHUD,
+  renderTerraformToast, renderReclamationStatus
+} from './render/runUI.js';
 import { getRunObjective } from './world/objective.js';
 import { canLeaveRunEnd, startNewRun } from './run.js';
 
@@ -41,6 +46,7 @@ const _allTargets = [];
 
 const pixi = new PixiCore();
 let pixiWorld = null;
+let pixiTerraform = null;
 let pixiEntities = null;
 let pixiWeapons = null;
 
@@ -268,6 +274,7 @@ function renderFrame() {
   if (pixi.ready) {
     pixi.updateCamera(camera, canvas.width, canvas.height);
     pixiWorld.syncBackground(camera, canvas.width, canvas.height, state.spriteManager);
+    pixiTerraform.sync(state.worldManager.terraform);
     pixiWorld.syncDecals(state.decalManager, camera, canvas.width, canvas.height);
     pixiWorld.syncStructures(state.worldManager, camera, canvas.width, canvas.height, nowSec);
     pixiEntities.sync(state, camera, canvas.width, canvas.height, nowSec);
@@ -286,6 +293,7 @@ function renderFrame() {
     if (camera.shakeAngle) ctx.rotate(camera.shakeAngle);
     ctx.translate(-camera.x, -camera.y);
     renderWorldGrid(ctx, canvas, camera, state.spriteManager);
+    renderReclaimedGround(ctx, state.worldManager.terraform);
     if (state.decalManager) state.decalManager.render(ctx, camera.x, camera.y, canvas.width, canvas.height);
     renderSanctuaryHub(ctx, state.spriteManager, state.worldManager.sanctuary);
     state.worldManager.render(ctx);
@@ -304,9 +312,13 @@ function renderFrame() {
   renderXPBar(ctx, canvas, state);
   renderSanctuaryHUD(ctx, canvas, state);
   if (state.isDrafting) renderDraftOverlay(ctx, canvas, state);
-  if (state.isWorkshopOpen) renderWorkshopOverlay(ctx, canvas, WORKSHOP_PERKS);
+  if (state.isWorkshopOpen) {
+    renderWorkshopOverlay(ctx, canvas, WORKSHOP_PERKS);
+    renderReclamationStatus(ctx, canvas, state.worldManager.terraform);
+  }
   renderOutpostHUD(ctx, canvas, state.worldManager, state.player);
   renderEvacHUD(ctx, canvas, state);
+  renderTerraformToast(ctx, canvas, state.worldManager.terraform);
   renderArsenalHUD(ctx, canvas, state);
   renderPlayerVitalsHUD(ctx, canvas, state);
   if (!state.isDrafting && !state.isWorkshopOpen) {
@@ -386,6 +398,7 @@ function gameLoop(currentTimestamp) {
   try {
     await pixi.init(document.getElementById('gameContainer'));
     pixiWorld = new PixiWorldRenderer(pixi);
+    pixiTerraform = new PixiTerraformRenderer(pixi);
     pixiEntities = new PixiEntitiesRenderer(pixi);
     pixiWeapons = new PixiWeaponsRenderer(pixi);
   } catch (err) {

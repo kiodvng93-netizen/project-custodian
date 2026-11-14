@@ -203,9 +203,12 @@ export class EnemyManager {
     }
   }
 
+  // Хвилі не спавняться на постійно відновленій землі й у полі Пурифаєра цього забігу
   isInsideTerraformedZone(x, y) {
-    if (!state.worldManager || !state.worldManager.isPurifierFieldActive()) return false;
-    const lm = state.worldManager.landmark;
+    const wm = state.worldManager;
+    if (wm.terraform.isReclaimed(x, y)) return true;
+    if (!wm.isPurifierFieldActive()) return false;
+    const lm = wm.landmark;
     const r = CONFIG.WORLD.terraformedRadius;
     return (x - lm.x) * (x - lm.x) + (y - lm.y) * (y - lm.y) < r * r;
   }

@@ -21,6 +21,25 @@ export const CONFIG = {
     chestSpawnChance: 0.65,
   },
 
+  // Постійне тераформування Кільця 1. Світ = постійні ділянки (тут) + випадкове наповнення
+  // (гнізда, руїни, скрині, аутпости — щозабігу нові). Стадія ділянки = скільки порогів лічильника
+  // з сейву (MetaProgression.world) пройдено; радіус = radii[стадія]. Відновлена земля:
+  // вороги повільніші, хвилі не спавняться, гнізда й руїни на ній не генеруються.
+  // Повне озеленення Кільця — не зараз (майбутнє/DLC): нові ділянки = нові записи в sites.
+  TERRAFORM: {
+    enemySpeedMult: 0.8,   // множник швидкості ворогів на відновленій землі
+    growSeconds: 2.5,      // анімація розростання при новій стадії
+    toastSeconds: 4.5,     // банер «ЗЕМЛЮ ВІДНОВЛЕНО»
+    sites: [
+      // Хаб: росте трохи — від усіх очищених гнізд за всі забіги
+      { id: 'hub', label: 'SANCTUARY', anchor: 'hub', counter: 'nestsCleansed', seed: 1171,
+        thresholds: [0, 4, 10, 18, 30], radii: [260, 320, 380, 440, 500] },
+      // Пурифаєр: з'являється після першого відновлення, росте з кожним наступним
+      { id: 'purifier', label: 'PURIFIER', anchor: 'landmark', counter: 'purifierRestorations', seed: 2393,
+        thresholds: [1, 2, 4, 7], radii: [420, 520, 620, 720] },
+    ],
+  },
+
   OUTPOST: {
     radius: 32,
     captureRadius: 170,
@@ -250,7 +269,7 @@ export const CONFIG = {
 };
 
 const DEFAULT_META_SAVE = {
-  version: 2,
+  version: 3,
   bankedTechScrap: 0,
   perks: {
     chassisArmor: 0,
@@ -258,6 +277,11 @@ const DEFAULT_META_SAVE = {
     shieldCapacitor: 0,
     naniteScavenge: 0,
     cargoSecurity: 0
+  },
+  // Лічильники постійного світу (стадії тераформування рахуються з них, див. TERRAFORM)
+  world: {
+    nestsCleansed: 0,
+    purifierRestorations: 0
   }
 };
 
@@ -275,8 +299,10 @@ export function loadMetaProgression() {
     const raw = localStorage.getItem('custodian_meta_save');
     if (!raw) return JSON.parse(JSON.stringify(DEFAULT_META_SAVE));
     const parsed = JSON.parse(raw);
+    // v2 → v3: додано world (лічильники тераформування), старі сейви починають з нуля
+    const world = parsed.world || {};
     return {
-      version: 2,
+      version: 3,
       bankedTechScrap: (Number(parsed.bankedTechScrap) || 0) + refundRemovedTracksPerk(parsed),
       perks: {
         chassisArmor: Number(parsed.perks && parsed.perks.chassisArmor) || 0,
@@ -284,6 +310,10 @@ export function loadMetaProgression() {
         shieldCapacitor: Number(parsed.perks && parsed.perks.shieldCapacitor) || 0,
         naniteScavenge: Number(parsed.perks && parsed.perks.naniteScavenge) || 0,
         cargoSecurity: Number(parsed.perks && parsed.perks.cargoSecurity) || 0
+      },
+      world: {
+        nestsCleansed: Number(world.nestsCleansed) || 0,
+        purifierRestorations: Number(world.purifierRestorations) || 0
       }
     };
   } catch (e) {
