@@ -95,7 +95,7 @@ export class EnemyManager {
 
     const cfg = CONFIG.ENEMIES;
     const waveCfg = cfg.WAVE;
-    const isExtractionAlert = Boolean(player.carryingCore || (state.worldManager && state.worldManager.transferActive));
+    const isExtractionAlert = Boolean(player.carryingCore || (state.worldManager && state.worldManager.evac.isActive));
     const progress = Math.min(1.0, this.elapsedRunTime / cfg.rampTimeSeconds);
     const nestRatio = Math.min(1.0, activeNestsCount / Math.max(1, CONFIG.WORLD.nestCountRing1));
     const nestMult = 0.75 + nestRatio * 0.75;
@@ -172,8 +172,8 @@ export class EnemyManager {
   }
 
   isInsideTerraformedZone(x, y) {
-    const lm = state.worldManager && state.worldManager.landmark;
-    if (!lm || !lm.repaired) return false;
+    if (!state.worldManager || !state.worldManager.isPurifierFieldActive()) return false;
+    const lm = state.worldManager.landmark;
     const r = CONFIG.WORLD.terraformedRadius;
     return (x - lm.x) * (x - lm.x) + (y - lm.y) * (y - lm.y) < r * r;
   }

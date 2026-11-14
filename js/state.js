@@ -39,6 +39,7 @@ export const state = {
   timeScale: 1.0,
   pendingLevelUps: 0,
   hitStopTimer: 0,
+  runEnd: null, // підсумок завершеного забігу (js/run.js); поки не null — симуляція стоїть
 
   player: null,
   camera: null,

@@ -18,7 +18,8 @@ Open problems and priorities are listed in `docs/AUDIT-2026-11-14.md` (§2 bugs,
 - `js/main.js`: boot, game loop, input, Workshop perk list, draft flow, HUD composition.
 - `js/config.js`: all balance numbers and the meta save (`localStorage` key `custodian_meta_save`, versioned, with migration in `loadMetaProgression`). **Treat `CONFIG` as read-only.** Per-run values belong on the player, `WeaponManager.runConfigs`, or `state`.
 - `js/state.js`: the single run-state object, shockwaves, hit-stop, restart callback. Modules share data through `state`; there are no `window.*` globals.
-- Simulation: `player.js`, `pickups.js`, `enemies/` (Enemy, EnemyManager waves, SpatialGrid), `weapons/` (catalog, upgrades/draft, 6 archetypes, projectiles, manager), `world/` (WorldManager, structures, sanctuary hub, outposts, minimap).
+- Simulation: `player.js`, `pickups.js`, `enemies/` (Enemy, EnemyManager waves, SpatialGrid), `weapons/` (catalog, upgrades/draft, 6 archetypes, projectiles, manager), `world/` (WorldManager, structures, sanctuary hub, outposts, evac beacon, objective chain, minimap).
+- Run flow: Warden → Core → Purifier → `[E]` evac → hold 60 s → victory (`world/evac.js`, `world/objective.js`). `js/run.js` `endRun(outcome)` sets `state.runEnd`, which freezes simulation and shows the summary (`render/runUI.js`). `startNewRun()` resets the player and fires the restart handler in `main.js`. Death and pause-abort go through `player.die()` → `endRun`.
 - Rendering: PixiJS (WebGL) draws the world (`render/pixi*.js`). A transparent Canvas 2D layer on top draws HUD, labels and overlays (`render/ui.js`, plus `render(ctx)` methods). If Pixi fails to init, `main.js` falls back to the Canvas `render(ctx)` methods.
 - Carried (unbanked) scrap currently lives in `Telemetry.metrics.resourcesCollected.techScrap`. This is a known smell; read and write it through that path until it is moved.
 

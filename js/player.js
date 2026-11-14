@@ -1,8 +1,9 @@
 // js/player.js — Модуль робота-хранителя: мобільність, дэш, щити і збереження скрапу
 
 import { CONFIG, MetaProgression, saveMetaProgression } from './config.js';
-import { state, triggerHitStop, spawnShockwave, requestRunRestart } from './state.js';
+import { state, triggerHitStop, spawnShockwave } from './state.js';
 import { Telemetry } from './telemetry.js';
+import { endRun } from './run.js';
 
 export class Player {
   constructor(x = 0, y = 0) {
@@ -86,7 +87,7 @@ export class Player {
       this.handleKey(e.code, true);
       if (e.code === 'Space') {
         e.preventDefault();
-        if (!state.isPaused && !state.isDrafting && !state.isWorkshopOpen) this.triggerDash();
+        if (!state.isPaused && !state.isDrafting && !state.isWorkshopOpen && !state.runEnd) this.triggerDash();
       }
     });
     window.addEventListener('keyup', (e) => this.handleKey(e.code, false));
@@ -190,7 +191,9 @@ export class Player {
     this.health = Math.min(this.maxHealth, this.health + amount);
   }
 
-  die() {
+  // outcome: 'death' (знищено) або 'abort' (відміна з меню паузи)
+  die(outcome = 'death') {
+    if (state.runEnd) return;
     Telemetry.metrics.deaths++;
     const unbanked = Telemetry.metrics.resourcesCollected.techScrap;
     const rates = CONFIG.ECONOMY.deathLossRates || [0.50, 0.40, 0.25];
@@ -209,8 +212,7 @@ export class Player {
     Telemetry.metrics.resourcesCollected.techScrap = 0;
     Telemetry.metrics.resourcesCollected.bioEssence = 0;
     Telemetry.recordEvent('DEATH', `Robot destroyed! Saved ${saved} Scrap, lost ${lost} (${Math.round(lossRate * 100)}%).`);
-    this.resetRunProgression();
-    requestRunRestart();
+    endRun(outcome, { banked: saved, lost });
   }
 
   resetRunProgression() {

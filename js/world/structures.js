@@ -177,11 +177,11 @@ export class Landmark {
     }
   }
 
-  render(ctx) {
+  render(ctx, fieldActive = this.repaired) {
     ctx.save();
     ctx.translate(this.x, this.y);
     const pulse = Math.sin(performance.now() / 300) * 4;
-    if (this.repaired) {
+    if (fieldActive) {
       const auraR = CONFIG.WORLD.terraformedRadius;
       ctx.fillStyle = 'rgba(72, 187, 120, 0.12)';
       ctx.beginPath(); ctx.arc(0, 0, auraR + pulse, 0, Math.PI * 2); ctx.fill();

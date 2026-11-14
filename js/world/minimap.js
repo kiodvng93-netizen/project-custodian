@@ -2,6 +2,7 @@
 
 import { CONFIG } from '../config.js';
 import { state } from '../state.js';
+import { getRunObjective } from './objective.js';
 
 export function renderRadarMinimap(ctx, worldManager, player) {
   const r = 72;
@@ -166,12 +167,10 @@ export function renderRadarMinimap(ctx, worldManager, player) {
   ctx.fillStyle = '#cbd5e0';
   ctx.fillText(`R1:${Math.round(ring1 / 1000)}km | NESTS:${worldManager.nests.length}`, cx, cy + r + 14);
 
-  let objText = 'CLEAR NESTS';
-  let objColor = '#fc8181';
-  if (player.carryingCore && lm && !lm.repaired) { objText = 'DELIVER CORE TO PURIFIER'; objColor = '#68d391'; }
-  else if (worldManager.coreDrop && worldManager.coreDrop.alive) { objText = 'PICKUP PURIFIER CORE'; objColor = '#ecc94b'; }
-  else if (warden) { objText = warden.isAwakened ? 'HIVE WARDEN ACTIVE' : 'HUNT HIVE WARDEN'; objColor = '#f687b3'; }
-  ctx.fillStyle = objColor;
-  ctx.fillText(objText, cx, cy + r + 27);
+  const objective = getRunObjective(worldManager, state.enemyManager, player);
+  if (objective) {
+    ctx.fillStyle = objective.color;
+    ctx.fillText(objective.text, cx, cy + r + 27);
+  }
   ctx.restore();
 }

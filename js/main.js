@@ -25,9 +25,11 @@ import {
   renderDraftOverlay,
   renderWorkshopOverlay,
   renderPauseMenu,
-  renderLandmarkTerminalHUD,
   renderSanctuaryHUD
 } from './render/ui.js';
+import { renderObjectiveArrow, renderEvacHUD, renderRunEndOverlay } from './render/runUI.js';
+import { getRunObjective } from './world/objective.js';
+import { canLeaveRunEnd, startNewRun } from './run.js';
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -84,6 +86,8 @@ setRunRestartHandler(() => {
   state.isWorkshopOpen = false;
   state.isPaused = false;
   state.timeScale = 1.0;
+  state.runEnd = null;
+  Telemetry.resetRun();
 
   state.enemyManager = new EnemyManager();
   state.pickupManager = new PickupManager();
@@ -111,6 +115,7 @@ const WORKSHOP_PERKS = [
 ];
 
 function triggerLevelUp() {
+  if (state.runEnd) return;
   if (state.isDrafting) { state.pendingLevelUps++; return; }
   state.isDrafting = true;
   state.timeScale = 0.08;
@@ -143,6 +148,10 @@ function buyWorkshopPerk(perk) {
 
 window.addEventListener('keydown', (e) => {
   if (e.key === CONFIG.ENGINE.debugKey || e.key === CONFIG.ENGINE.altDebugKey) debugHUD.classList.toggle('hidden');
+  if (state.runEnd) {
+    if (!e.repeat && (e.code === 'Enter' || e.code === 'Space' || e.code === 'KeyE')) startNewRun();
+    return;
+  }
   if (e.code === 'Escape' || e.code === 'KeyP') {
     if (!state.isDrafting && !state.isWorkshopOpen) state.isPaused = !state.isPaused;
     else if (state.isWorkshopOpen) { state.isWorkshopOpen = false; state.timeScale = 1.0; }
@@ -154,7 +163,7 @@ window.addEventListener('keydown', (e) => {
     state.timeScale = state.isWorkshopOpen ? 0.0 : 1.0;
   }
   if (e.code === 'KeyT' && state.enemyManager) state.enemyManager.triggerStressTestSwarm(state.player);
-  if (e.code === 'KeyF' && state.worldManager && state.worldManager.landmark && state.worldManager.landmark.repaired) {
+  if (e.code === 'KeyF' && state.worldManager.landmark.repaired && !state.worldManager.evac.isActive) {
     if (Math.hypot(state.player.x - state.worldManager.landmark.x, state.player.y - state.worldManager.landmark.y) < CONFIG.WORLD.terraformedRadius) {
       state.worldManager.fastTravelToHubWithTax(state.player);
     }
@@ -181,20 +190,17 @@ window.addEventListener('keydown', (e) => {
     if (!handled && state.worldManager && state.worldManager.sanctuary) {
       handled = state.worldManager.sanctuary.depositScrap(state.player);
     }
-    if (!handled && state.worldManager && state.worldManager.landmark && state.worldManager.landmark.repaired) {
-      if (Math.hypot(state.player.x - state.worldManager.landmark.x, state.player.y - state.worldManager.landmark.y) < CONFIG.WORLD.terraformedRadius) {
-        state.worldManager.startRemoteTransfer();
-      }
-    }
+    if (!handled) state.worldManager.evac.call(state.player, state.enemyManager);
   }
   if (state.isDrafting) { if (e.key === '1') selectCard(0); if (e.key === '2') selectCard(1); if (e.key === '3') selectCard(2); }
 });
 
 window.addEventListener('click', (e) => {
+  if (state.runEnd) { startNewRun(); return; }
   if (state.isPaused) {
     const mw = 260, mh = 44, cx = canvas.width / 2, cy = canvas.height / 2;
     if (e.clientX >= cx - mw / 2 && e.clientX <= cx + mw / 2 && e.clientY >= cy - 30 && e.clientY <= cy - 30 + mh) { state.isPaused = false; return; }
-    if (e.clientX >= cx - mw / 2 && e.clientX <= cx + mw / 2 && e.clientY >= cy + 26 && e.clientY <= cy + 26 + mh) { state.isPaused = false; state.player.die(); return; }
+    if (e.clientX >= cx - mw / 2 && e.clientX <= cx + mw / 2 && e.clientY >= cy + 26 && e.clientY <= cy + 26 + mh) { state.isPaused = false; state.player.die('abort'); return; }
     return;
   }
   if (state.isDrafting) {
@@ -234,6 +240,7 @@ function renderWorldLabelsOverlay() {
   if (pixi.ready && state.worldManager && state.worldManager.outposts) {
     for (const outpost of state.worldManager.outposts) outpost.render(ctx);
   }
+  if (pixi.ready) state.worldManager.evac.render(ctx);
 
   ctx.font = 'bold 12px monospace';
   ctx.textAlign = 'center';
@@ -242,8 +249,9 @@ function renderWorldLabelsOverlay() {
 
   const lm = state.worldManager.landmark;
   if (lm) {
-    ctx.fillStyle = lm.repaired ? '#9ae6b4' : '#cbd5e0';
-    ctx.fillText(lm.repaired ? 'BIOSPHERE PURIFIER [ONLINE]' : 'PURIFIER [NEEDS CORE]', lm.x, lm.y + lm.radius + 20);
+    const evacActive = state.worldManager.evac.isActive;
+    ctx.fillStyle = evacActive ? '#90cdf4' : lm.repaired ? '#9ae6b4' : '#cbd5e0';
+    ctx.fillText(evacActive ? 'EVAC BEACON [FIELD DOWN]' : lm.repaired ? 'BIOSPHERE PURIFIER [ONLINE]' : 'PURIFIER [NEEDS CORE]', lm.x, lm.y + lm.radius + 20);
   }
   for (const c of state.worldManager.chests) {
     if (!c.opened && Math.abs(c.x - camera.x) < canvas.width && Math.abs(c.y - camera.y) < canvas.height) {
@@ -312,9 +320,12 @@ function renderFrame() {
   if (state.isDrafting) renderDraftOverlay(ctx, canvas, state);
   if (state.isWorkshopOpen) renderWorkshopOverlay(ctx, canvas, WORKSHOP_PERKS);
   renderOutpostHUD(ctx, canvas, state.worldManager, state.player);
-  renderLandmarkTerminalHUD(ctx, canvas, state);
+  renderEvacHUD(ctx, canvas, state);
   renderArsenalHUD(ctx, canvas, state);
   renderPlayerVitalsHUD(ctx, canvas, state);
+  if (!state.isDrafting && !state.isWorkshopOpen) {
+    renderObjectiveArrow(ctx, canvas, camera, getRunObjective(state.worldManager, state.enemyManager, state.player));
+  }
   if (state.isPaused) renderPauseMenu(ctx, canvas);
 
   const domeBroken = state.worldManager.sanctuary && state.worldManager.sanctuary.domeBroken;
@@ -338,6 +349,7 @@ function renderFrame() {
   }
   ctx.fillStyle = 'rgba(160, 174, 192, 0.85)'; ctx.font = '12px monospace';
   ctx.fillText(`Horde: ${state.enemyManager.enemies.length}/400 | Weapons: ${state.weaponManager.slots.length}/6 | [SPACE] Dash | [T] Stress | [ESC] Pause`, 16, canvas.height - 18);
+  if (state.runEnd) renderRunEndOverlay(ctx, canvas, state.runEnd, canLeaveRunEnd());
 }
 
 function gameLoop(currentTimestamp) {
@@ -355,7 +367,7 @@ function gameLoop(currentTimestamp) {
   }
 
   let dt = rawDt * state.timeScale;
-  if (!state.isWorkshopOpen && !state.isPaused) {
+  if (!state.isWorkshopOpen && !state.isPaused && !state.runEnd) {
     state.player.update(dt);
     state.worldManager.update(dt, state.player, state.enemyManager);
     state.enemyManager.update(dt, state.player, camera, canvas.width, canvas.height, state.worldManager.nests.length);

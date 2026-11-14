@@ -189,14 +189,16 @@ export class PixiWorldRenderer {
 
     const lm = worldManager.landmark;
     if (lm) {
-      if (lm.repaired && !this.landmarkAura.visible) {
+      // Аура поля Пурифаєра; під час евакуації поле вимкнене
+      const fieldActive = worldManager.isPurifierFieldActive();
+      if (fieldActive && !this.landmarkAura.visible) {
         this.landmarkAura.clear();
         this.landmarkAura
           .circle(lm.x, lm.y, CONFIG.WORLD.terraformedRadius)
           .fill({ color: 0x48bb78, alpha: 0.12 })
           .stroke({ width: 2.5, color: 0x48bb78 });
         this.landmarkAura.visible = true;
-      } else if (!lm.repaired) {
+      } else if (!fieldActive) {
         this.landmarkAura.visible = false;
       }
 

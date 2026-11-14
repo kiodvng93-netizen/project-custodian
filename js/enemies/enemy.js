@@ -126,7 +126,7 @@ export class Enemy {
 
   update(dt, player, enemies) {
     if (!this.alive) return;
-    if (!this.isTitan && state.worldManager && state.worldManager.landmark && state.worldManager.landmark.repaired) {
+    if (!this.isTitan && state.worldManager && state.worldManager.isPurifierFieldActive()) {
       if (Math.hypot(this.x - state.worldManager.landmark.x, this.y - state.worldManager.landmark.y) < CONFIG.WORLD.terraformedRadius) {
         this.alive = false;
         return;

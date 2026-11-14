@@ -1,4 +1,4 @@
-# PROJECT CUSTODIAN — MASTER STATE & HANDOVER (v4.7)
+# PROJECT CUSTODIAN — MASTER STATE & HANDOVER (v4.8)
 **Дата оновлення:** 14 листопада 2026
 **Статус:** Модульний ES6+ проєкт, гібридний рендер **PixiJS v8 (WebGL світ + Y-sorting + тіні)** + **Canvas 2D UI**. Світ — лише **Кільце 1** (`15 000px`, межа світу). Фокус: зробити основний цикл Кільця 1 цікавим.
 
@@ -30,7 +30,8 @@
   `x, y, radius, typeKey ('sprout'|'stalker'|'dasher'|'warden'), color, health, maxHealth, hitFlashTimer, alive, isAwakened, isTelegraphing, isCharging, facingAngle, animState ('idle'|'chase'|'windup'|'attack'), isTitan, invulnerable`
   `takeDamage(amount, sourceX, sourceY, suppressLoot = false)`
 - **World (`state.worldManager`):**
-  `obstacles[]`, `chests[]`, `nests[]`, `outposts[] ({x, y, radius, captureRadius, state})`, `sanctuary ({healPool, maxHealPool, domeBroken, wrathWarning, campTimer})`, `landmark`, `coreDrop`
+  `obstacles[]`, `chests[]`, `nests[]`, `initialNestCount`, `outposts[] ({x, y, radius, captureRadius, state})`, `sanctuary ({healPool, maxHealPool, domeBroken, wrathWarning, campTimer})`, `landmark`, `coreDrop`, `evac ({state: 'idle'|'active'|'complete', timer, totalTime, playerInZone, isActive})`, `isPurifierFieldActive()`
+- **Run end (`state.runEnd`):** `null` під час гри; інакше `{outcome: 'victory'|'death'|'abort', banked, lost, bonus, timeSec, kills, level, wave, nestsCleansed, nestsTotal}`. Ставиться через `endRun()` у `js/run.js`.
 - **Weapons (`state.weaponManager`):**
   `slots[] ({name, isEvolution, cfg: {archetype, damage, ...}})`, `projectiles[]`, `mortarShells[]`, `zones[]`, `particles[]`
 - **Effects / Loot (`state`):**
@@ -47,16 +48,17 @@
 - [x] Смерть під час драфту переносить драфт і уповільнення в новий забіг. Рестарт скидає драфт, Воркшоп, паузу і `timeScale`; `[B]` не відкриває Воркшоп під час драфту.
 - [x] Клавіші «залипають» після alt-tab (скидання на `blur`); Dash не спрацьовує на паузі, у драфті й у Воркшопі.
 
-### B. Цикл гри (вирішити після багів)
-- [ ] Ціль і фінал забігу (евакуація після очищення Пурифаєра?).
+### B. Цикл гри
+- [x] **Ціль і фінал забігу (v4.8, перевірено в браузері).** Ланцюжок: вбити Hive Warden → підібрати Ядро → віднести до Пурифаєра → `[E]` викликати евакуацію → утримати зону Пурифаєра `60с` (таймер стоїть поза зоною; поле Пурифаєра вимкнене; кільце засідки кожні `20с`) → перемога: весь трюм + `10` бонусного скрапу у Vault. Поточна ціль показана під радаром і стрілкою з відстанню біля краю екрана. Евакуація замінила 25-секундний Remote Transfer (`world/evac.js`, `world/objective.js`, `run.js`, `render/runUI.js`, конфіг `EVAC`).
 - [ ] Тиск ворогів залежить від скрапу в трюмі, а не лише від часу; ескалація видима на екрані.
-- [ ] Зменшити кількість систем збереження скрапу (зараз 5).
+- [ ] Зменшити кількість систем збереження скрапу (зараз 4: Хаб, Аутпости, Евакуація, Fast Travel з податком; плюс часткове збереження при смерті).
 - [ ] Вороги не швидші за гравця; плавніша крива XP; еволюції зберігають апгрейди; Flamer наводиться на ворогів.
 
 ### C. Відчуття гри
 - [ ] Web Audio SFX.
 - [ ] Агрегація цифр урону.
-- [ ] Титульний екран, екран смерті з підсумком забігу.
+- [x] Екран підсумку забігу (перемога / знищення / відміна): час, хвиля, рівень, кілли, гнізда, скрап. Симуляція стоїть, новий забіг — `[Enter]` або клік.
+- [ ] Титульний екран.
 
 ### D. Пізніше
 - [ ] Пайплайн асетів (прозорі спрайт-листи правильного розміру), спрайти Аутпостів/турелей.

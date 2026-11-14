@@ -256,27 +256,6 @@ export function renderPauseMenu(ctx, canvas) {
   ctx.restore();
 }
 
-export function renderLandmarkTerminalHUD(ctx, canvas, state) {
-  if (!state.worldManager || !state.worldManager.landmark || !state.worldManager.landmark.repaired) return;
-  const distToLm = Math.hypot(state.player.x - state.worldManager.landmark.x, state.player.y - state.worldManager.landmark.y);
-  if (distToLm < CONFIG.WORLD.terraformedRadius) {
-    ctx.fillStyle = 'rgba(13, 16, 23, 0.85)';
-    ctx.fillRect(canvas.width / 2 - 230, canvas.height - 120, 460, 60);
-    ctx.strokeStyle = '#48bb78'; ctx.lineWidth = 1.5;
-    ctx.strokeRect(canvas.width / 2 - 230, canvas.height - 120, 460, 60);
-    ctx.textAlign = 'center';
-    if (state.worldManager.transferActive) {
-      ctx.fillStyle = '#fc8181'; ctx.font = 'bold 15px monospace';
-      ctx.fillText(`TRANSFER ACTIVE: ${Math.ceil(state.worldManager.transferTimer)}s REMAINING!`, canvas.width / 2, canvas.height - 85);
-    } else {
-      ctx.fillStyle = '#ecc94b'; ctx.font = 'bold 13px monospace';
-      ctx.fillText('[E] START 25s SCRAP TRANSFER (100% SECURED)', canvas.width / 2, canvas.height - 95);
-      ctx.fillStyle = '#63b3ed';
-      ctx.fillText('[F] FAST TRAVEL TO HUB (DISTANCE TAX)', canvas.width / 2, canvas.height - 75);
-    }
-  }
-}
-
 export function renderSanctuaryHUD(ctx, canvas, state) {
   const sanc = state.worldManager && state.worldManager.sanctuary;
   if (!sanc) return;

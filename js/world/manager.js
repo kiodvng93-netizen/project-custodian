@@ -1,11 +1,13 @@
-// js/world/manager.js — Менеджер світу: руїни, гнізда, аутпости, Хаб, колізії, загрози Кільця 2+ та телепорт
+// js/world/manager.js — Менеджер світу: руїни, гнізда, аутпости, Хаб, колізії, евакуація та телепорт
 
 import { CONFIG, MetaProgression, saveMetaProgression } from '../config.js';
-import { state } from '../state.js';
+import { state, spawnShockwave } from '../state.js';
 import { Telemetry } from '../telemetry.js';
+import { endRun } from '../run.js';
 import { ObstacleWall, LootChest, Landmark, CorePickup, CorruptedNest } from './structures.js';
 import { SanctuaryHub } from './sanctuary.js';
 import { InsuranceOutpost } from './outpost.js';
+import { EvacBeacon } from './evac.js';
 import { renderRadarMinimap } from './minimap.js';
 
 export class WorldManager {
@@ -18,9 +20,7 @@ export class WorldManager {
     this.landmark = new Landmark(lm.x, lm.y);
     this.sanctuary = new SanctuaryHub();
     this.coreDrop = null;
-    this.transferActive = false;
-    this.transferTimer = 0;
-    this.transferTotalTime = 25.0;
+    this.evac = new EvacBeacon(this.landmark);
 
     this._obstacleCellSize = 320;
     this._obstacleGrid = new Map();
@@ -32,6 +32,12 @@ export class WorldManager {
     this.buildObstacleGrid();
     this.spawnChests();
     this.spawnOutposts();
+    this.initialNestCount = this.nests.length;
+  }
+
+  // Поле Пурифаєра знищує ворогів у зоні — але не під час евакуації
+  isPurifierFieldActive() {
+    return this.landmark.repaired && !this.evac.isActive;
   }
 
   isClearOfPOIs(x, y, nestPad = 240) {
@@ -242,28 +248,24 @@ export class WorldManager {
 
   spawnCore(x, y) { this.coreDrop = new CorePickup(x, y); }
 
-  startRemoteTransfer() {
-    if (this.transferActive || !this.landmark.repaired) return;
-    this.transferActive = true;
-    this.transferTimer = this.transferTotalTime;
-    if (state.camera) state.camera.addTrauma(0.5);
-    Telemetry.recordEvent('SURGE', 'Scrap Transfer started! 25s Survival Surge!');
-  }
-
-  completeRemoteTransfer() {
-    this.transferActive = false;
+  // Перемога: весь трюм + бонус у Vault, забіг завершено
+  completeEvac() {
     const m = Telemetry.metrics;
-    const scrapSecured = m.resourcesCollected.techScrap;
-    MetaProgression.bankedTechScrap += scrapSecured;
-    m.resourcesBanked.techScrap += scrapSecured;
+    const cargo = m.resourcesCollected.techScrap;
+    const bonus = CONFIG.EVAC.victoryBonusScrap;
+    MetaProgression.bankedTechScrap += cargo + bonus;
+    m.resourcesBanked.techScrap += cargo + bonus;
     m.resourcesCollected.techScrap = 0;
+    m.evacsCompleted++;
     saveMetaProgression();
-    if (state.camera) state.camera.addTrauma(0.6);
-    Telemetry.recordEvent('BANK', `Secured +${scrapSecured} Tech Scrap in Sanctuary Vault!`);
+    if (state.camera) state.camera.addTrauma(0.8);
+    spawnShockwave(this.landmark.x, this.landmark.y, { radius: 30, maxRadius: 700, color: '#bee3f8', speed: 620, lineWidth: 9 });
+    Telemetry.recordEvent('EVAC', `Evacuated! Banked ${cargo} + ${bonus} bonus Scrap.`);
+    endRun('victory', { banked: cargo + bonus, bonus });
   }
 
   fastTravelToHubWithTax(player) {
-    if (!this.landmark.repaired) return;
+    if (!this.landmark.repaired || this.evac.isActive) return;
     const dist = Math.hypot(player.x, player.y);
     const taxRate = Math.min(CONFIG.ECONOMY.maxDistanceTax, (dist / 1000) * CONFIG.ECONOMY.distanceTaxRatePer1000px);
     const m = Telemetry.metrics;
@@ -292,10 +294,7 @@ export class WorldManager {
         this.landmark.repair(player);
       }
     }
-    if (this.transferActive) {
-      this.transferTimer -= dt;
-      if (this.transferTimer <= 0) this.completeRemoteTransfer();
-    }
+    if (this.evac.update(dt, player, enemyManager)) this.completeEvac();
   }
 
   render(ctx) {
@@ -311,7 +310,8 @@ export class WorldManager {
     }
     this.sanctuary.renderOverlay(ctx);
     for (let i = 0; i < this.outposts.length; i++) this.outposts[i].render(ctx);
-    this.landmark.render(ctx);
+    this.landmark.render(ctx, this.isPurifierFieldActive());
+    this.evac.render(ctx);
     for (const nest of this.nests) nest.render(ctx);
     if (this.coreDrop && this.coreDrop.alive) this.coreDrop.render(ctx);
   }

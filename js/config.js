@@ -31,6 +31,15 @@ export const CONFIG = {
     healReward: 20,
   },
 
+  // Фінал забігу: евакуація з відновленого Пурифаєра (зона утримання = terraformedRadius)
+  EVAC: {
+    duration: 60,          // секунд утримання в зоні маяка
+    ambushCount: 14,       // ворогів у кільці засідки
+    ambushInterval: 20,    // нове кільце засідки кожні N секунд
+    ambushRadius: 560,
+    victoryBonusScrap: 10, // бонус до Vault за успішну евакуацію
+  },
+
   HUB: {
     radius: 180,
     defenseRange: 255,

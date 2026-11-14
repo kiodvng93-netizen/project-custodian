@@ -22,8 +22,8 @@ export class TelemetryEngine {
       resourcesBanked: { techScrap: 0, bioEssence: 0 },
       resourcesLostOnDeath: { techScrap: 0, bioEssence: 0 },
       distanceTraveled: 0,
-      transferSurgesAttempted: 0,
-      transferSurgesFailed: 0,
+      evacsCalled: 0,
+      evacsCompleted: 0,
       deaths: 0,
     };
 
@@ -87,7 +87,7 @@ Damage Taken: ${Math.round(m.damageTaken)} (Shields Absorbed: ${m.shieldHitsAbso
 Tech Scrap: +${m.resourcesCollected.techScrap} | Banked: ${m.resourcesBanked.techScrap}
 Bio Essence: +${m.resourcesCollected.bioEssence} | Banked: ${m.resourcesBanked.bioEssence}
 Lost on Death: Scrap ${m.resourcesLostOnDeath.techScrap} | Bio ${m.resourcesLostOnDeath.bioEssence}
-Transfer Surges: ${m.transferSurgesAttempted} (Failed: ${m.transferSurgesFailed})
+Evacs: ${m.evacsCompleted} completed / ${m.evacsCalled} called
 
 <strong>[RECENT LOG]</strong>
 ${this.eventLog.slice(0, 5).map(e => `[${e.time}s] ${e.type}: ${e.message}`).join('\n')}
