@@ -41,7 +41,6 @@ export function renderWorldGrid(ctx, canvas, camera, spriteManager) {
     ctx.stroke();
   }
 
-  // Граница текущего кольца биома
   ctx.strokeStyle = 'rgba(237, 137, 54, 0.55)';
   ctx.lineWidth = 3;
   ctx.setLineDash([16, 16]);
@@ -51,16 +50,18 @@ export function renderWorldGrid(ctx, canvas, camera, spriteManager) {
   ctx.setLineDash([]);
 }
 
-export function renderSanctuaryHub(ctx, spriteManager) {
+export function renderSanctuaryHub(ctx, spriteManager, sanctuary = null) {
+  const broken = sanctuary && sanctuary.domeBroken;
+  const radius = CONFIG.HUB.radius;
   ctx.save();
   let drawn = false;
-  if (spriteManager) {
+  if (!broken && spriteManager) {
     try {
       const hubPattern = spriteManager.getPattern(ctx, 'tile_hub');
       if (hubPattern) {
         ctx.fillStyle = hubPattern;
         ctx.beginPath();
-        ctx.arc(0, 0, 180, 0, Math.PI * 2);
+        ctx.arc(0, 0, radius, 0, Math.PI * 2);
         ctx.fill();
         drawn = true;
       }
@@ -68,17 +69,17 @@ export function renderSanctuaryHub(ctx, spriteManager) {
   }
 
   if (!drawn) {
-    ctx.fillStyle = 'rgba(72, 187, 120, 0.15)';
+    ctx.fillStyle = broken ? 'rgba(229, 62, 62, 0.14)' : 'rgba(72, 187, 120, 0.15)';
     ctx.beginPath();
-    ctx.arc(0, 0, 180, 0, Math.PI * 2);
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  ctx.strokeStyle = '#48bb78';
+  ctx.strokeStyle = broken ? '#e53e3e' : '#48bb78';
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  ctx.fillStyle = '#48bb78';
+  ctx.fillStyle = broken ? '#e53e3e' : '#48bb78';
   ctx.beginPath();
   ctx.arc(0, 0, 16, 0, Math.PI * 2);
   ctx.fill();
@@ -86,6 +87,6 @@ export function renderSanctuaryHub(ctx, spriteManager) {
   ctx.fillStyle = '#a0aec0';
   ctx.font = 'bold 12px monospace';
   ctx.textAlign = 'center';
-  ctx.fillText('SANCTUARY GATE (0, 0)', 0, 36);
+  ctx.fillText(broken ? 'SANCTUARY GATE [BREACHED]' : 'SANCTUARY GATE (0, 0)', 0, 36);
   ctx.restore();
 }

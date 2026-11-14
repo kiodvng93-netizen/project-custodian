@@ -30,7 +30,7 @@ export class Pickup {
       const angle = Math.atan2(dy, dx);
       this.homingSpeed = Math.min(
         this.homingSpeed + CONFIG.PICKUPS.magnetAcceleration * dt * 1.5,
-        900
+        1050
       );
 
       this.vx = Math.cos(angle) * this.homingSpeed;
@@ -100,6 +100,20 @@ export class PickupManager {
 
   spawn(x, y, type = 'bio', val = 1) {
     this.pickups.push(new Pickup(x, y, type, val));
+  }
+
+  vacuumInRadius(x, y, radius = 900) {
+    const rSq = radius * radius;
+    for (let i = 0; i < this.pickups.length; i++) {
+      const p = this.pickups[i];
+      if (!p.alive) continue;
+      const dx = p.x - x;
+      const dy = p.y - y;
+      if (dx * dx + dy * dy <= rSq) {
+        p.isMagnetized = true;
+        p.homingSpeed = Math.max(p.homingSpeed, 520);
+      }
+    }
   }
 
   update(dt, player) {

@@ -28,17 +28,10 @@ export class Projectile {
       return;
     }
 
-    if (state.worldManager && state.worldManager.obstacles) {
-      for (const wall of state.worldManager.obstacles) {
-        if (Math.abs(wall.x - this.x) < 220 && Math.abs(wall.y - this.y) < 220) {
-          const hit = wall.intersectsProjectile ? wall.intersectsProjectile(this, dt) : wall.intersectsPoint(this.x, this.y);
-          if (hit) {
-            this.alive = false;
-            if (spawnParticles) spawnParticles(this.x, this.y);
-            return;
-          }
-        }
-      }
+    if (state.worldManager && state.worldManager.intersectsProjectileObstacles(this, dt)) {
+      this.alive = false;
+      if (spawnParticles) spawnParticles(this.x, this.y);
+      return;
     }
 
     for (let i = 0; i < enemies.length; i++) {

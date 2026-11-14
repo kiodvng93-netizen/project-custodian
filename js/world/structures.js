@@ -11,6 +11,15 @@ export class ObstacleWall {
     this.y = y;
     this.w = w;
     this.h = h;
+    this._queryToken = 0;
+  }
+
+  intersectsCircle(cx, cy, r) {
+    const nx = Math.max(this.x, Math.min(cx, this.x + this.w));
+    const ny = Math.max(this.y, Math.min(cy, this.y + this.h));
+    const dx = cx - nx;
+    const dy = cy - ny;
+    return (dx * dx + dy * dy) < (r * r);
   }
 
   resolveCircleCollision(circle) {
@@ -32,7 +41,6 @@ export class ObstacleWall {
         const topDist = circle.y - this.y;
         const bottomDist = (this.y + this.h) - circle.y;
         const minDist = Math.min(leftDist, rightDist, topDist, bottomDist);
-
         if (minDist === leftDist) circle.x = this.x - circle.radius;
         else if (minDist === rightDist) circle.x = this.x + this.w + circle.radius;
         else if (minDist === topDist) circle.y = this.y - circle.radius;
@@ -50,20 +58,30 @@ export class ObstacleWall {
   intersectsProjectile(p, dt = 0.016) {
     if (!p) return false;
     const r = (p.size || 5) + 1;
-    const minX = this.x - r;
-    const maxX = this.x + this.w + r;
-    const minY = this.y - r;
-    const maxY = this.y + this.h + r;
+    const minX = this.x - r, maxX = this.x + this.w + r;
+    const minY = this.y - r, maxY = this.y + this.h + r;
+    const dx = (p.vx || 0) * dt, dy = (p.vy || 0) * dt;
+    const prevX = p.x - dx, prevY = p.y - dy;
+    let tMin = 0, tMax = 1;
 
-    if (p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY) return true;
+    if (Math.abs(dx) < 1e-6) { if (prevX < minX || prevX > maxX) return false; }
+    else {
+      const inv = 1 / dx;
+      let t1 = (minX - prevX) * inv, t2 = (maxX - prevX) * inv;
+      if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+      tMin = Math.max(tMin, t1); tMax = Math.min(tMax, t2);
+      if (tMin > tMax) return false;
+    }
 
-    const prevX = p.x - (p.vx || 0) * dt;
-    const prevY = p.y - (p.vy || 0) * dt;
-    if (prevX >= minX && prevX <= maxX && prevY >= minY && prevY <= maxY) return true;
-
-    const midX = (prevX + p.x) * 0.5;
-    const midY = (prevY + p.y) * 0.5;
-    return midX >= minX && midX <= maxX && midY >= minY && midY <= maxY;
+    if (Math.abs(dy) < 1e-6) { if (prevY < minY || prevY > maxY) return false; }
+    else {
+      const inv = 1 / dy;
+      let t1 = (minY - prevY) * inv, t2 = (maxY - prevY) * inv;
+      if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+      tMin = Math.max(tMin, t1); tMax = Math.min(tMax, t2);
+      if (tMin > tMax) return false;
+    }
+    return true;
   }
 
   render(ctx) {
@@ -71,13 +89,10 @@ export class ObstacleWall {
     ctx.fillStyle = '#1e2530';
     ctx.strokeStyle = '#4a5568';
     ctx.lineWidth = 2.5;
-
     ctx.fillRect(this.x, this.y, this.w, this.h);
     ctx.strokeRect(this.x, this.y, this.w, this.h);
-
     ctx.fillStyle = '#2d3748';
     ctx.fillRect(this.x + 3, this.y + 3, Math.max(2, this.w - 6), Math.max(2, this.h - 6));
-
     ctx.strokeStyle = '#e2e8f0';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -115,39 +130,23 @@ export class LootChest {
       }
     }
 
-    if (player.shieldCharges < player.maxShieldCharges) {
-      player.shieldCharges = player.maxShieldCharges;
-    }
-
+    if (player.shieldCharges < player.maxShieldCharges) player.shieldCharges = player.maxShieldCharges;
     Telemetry.recordEvent('LOOT', 'Supply Cache cracked open! Tech Scrap acquired.');
   }
 
   render(ctx) {
     ctx.save();
     ctx.translate(this.x, this.y);
-
     if (this.opened) {
-      ctx.fillStyle = '#2d3748';
-      ctx.strokeStyle = '#4a5568';
-      ctx.lineWidth = 1.5;
-      ctx.fillRect(-12, -8, 24, 16);
-      ctx.strokeRect(-12, -8, 24, 16);
+      ctx.fillStyle = '#2d3748'; ctx.strokeStyle = '#4a5568'; ctx.lineWidth = 1.5;
+      ctx.fillRect(-12, -8, 24, 16); ctx.strokeRect(-12, -8, 24, 16);
     } else {
       const pulse = Math.sin(performance.now() / 200) * 2;
-      ctx.fillStyle = '#b7791f';
-      ctx.strokeStyle = '#f6e05e';
-      ctx.lineWidth = 2;
-      ctx.fillRect(-14, -10, 28, 20);
-      ctx.strokeRect(-14, -10, 28, 20);
-
+      ctx.fillStyle = '#b7791f'; ctx.strokeStyle = '#f6e05e'; ctx.lineWidth = 2;
+      ctx.fillRect(-14, -10, 28, 20); ctx.strokeRect(-14, -10, 28, 20);
       ctx.fillStyle = '#fefcbf';
-      ctx.beginPath();
-      ctx.arc(0, 0, 4 + pulse * 0.5, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = '#f6e05e';
-      ctx.font = 'bold 9px monospace';
-      ctx.textAlign = 'center';
+      ctx.beginPath(); ctx.arc(0, 0, 4 + pulse * 0.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#f6e05e'; ctx.font = 'bold 9px monospace'; ctx.textAlign = 'center';
       ctx.fillText('[E] CACHE', 0, -14);
     }
     ctx.restore();
@@ -166,10 +165,8 @@ export class Landmark {
     if (this.repaired) return;
     this.repaired = true;
     player.carryingCore = false;
-
     if (state.camera) state.camera.addTrauma(0.65);
     triggerHitStop(0.08);
-
     Telemetry.recordEvent('TERRAFORM', 'Biosphere Purifier restored! Safe haven created.');
     Telemetry.metrics.resourcesCollected.techScrap += 5;
 
@@ -183,52 +180,30 @@ export class Landmark {
   render(ctx) {
     ctx.save();
     ctx.translate(this.x, this.y);
-
     const pulse = Math.sin(performance.now() / 300) * 4;
-
     if (this.repaired) {
       const auraR = CONFIG.WORLD.terraformedRadius;
       ctx.fillStyle = 'rgba(72, 187, 120, 0.12)';
-      ctx.beginPath();
-      ctx.arc(0, 0, auraR + pulse, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.strokeStyle = '#48bb78';
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([10, 6]);
-      ctx.stroke();
-      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(0, 0, auraR + pulse, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#48bb78'; ctx.lineWidth = 2.5;
+      ctx.setLineDash([10, 6]); ctx.stroke(); ctx.setLineDash([]);
     }
-
     ctx.fillStyle = this.repaired ? '#1c4532' : '#2d3748';
     ctx.strokeStyle = this.repaired ? '#68d391' : '#718096';
     ctx.lineWidth = 3;
-
-    ctx.beginPath();
-    ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
+    ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.fillStyle = this.repaired ? '#48bb78' : '#e53e3e';
-    ctx.beginPath();
-    ctx.arc(0, 0, 16 + (this.repaired ? pulse * 0.5 : 0), 0, Math.PI * 2);
-    ctx.fill();
-
+    ctx.beginPath(); ctx.arc(0, 0, 16 + (this.repaired ? pulse * 0.5 : 0), 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = this.repaired ? '#9ae6b4' : '#cbd5e0';
-    ctx.font = 'bold 12px monospace';
-    ctx.textAlign = 'center';
+    ctx.font = 'bold 12px monospace'; ctx.textAlign = 'center';
     ctx.fillText(this.repaired ? 'BIOSPHERE PURIFIER [ONLINE]' : 'PURIFIER [NEEDS CORE]', 0, this.radius + 20);
-
     ctx.restore();
   }
 }
 
 export class CorePickup {
   constructor(x, y) {
-    this.x = x;
-    this.y = y;
-    this.radius = 12;
-    this.alive = true;
+    this.x = x; this.y = y; this.radius = 12; this.alive = true;
   }
 
   update(player) {
@@ -244,33 +219,21 @@ export class CorePickup {
     if (!this.alive) return;
     ctx.save();
     ctx.translate(this.x, this.y);
-
     const pulse = Math.sin(performance.now() / 180) * 3;
-
     ctx.fillStyle = 'rgba(236, 201, 75, 0.3)';
-    ctx.beginPath();
-    ctx.arc(0, 0, this.radius + 8 + pulse, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#d69e2e';
-    ctx.strokeStyle = '#faf089';
-    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, this.radius + 8 + pulse, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#d69e2e'; ctx.strokeStyle = '#faf089'; ctx.lineWidth = 2;
     ctx.fillRect(-this.radius, -this.radius, this.radius * 2, this.radius * 2);
     ctx.strokeRect(-this.radius, -this.radius, this.radius * 2, this.radius * 2);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 10px monospace';
-    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'center';
     ctx.fillText('CORE', 0, 4);
-
     ctx.restore();
   }
 }
 
 export class CorruptedNest {
   constructor(x, y) {
-    this.x = x;
-    this.y = y;
+    this.x = x; this.y = y;
     const nestCfg = CONFIG.NEST;
     this.radius = nestCfg.radius;
     this.maxHealth = nestCfg.maxHealth;
@@ -291,12 +254,7 @@ export class CorruptedNest {
 
     const displayDamage = Math.round(amount);
     if (state.damageTexts && displayDamage > 0) {
-      state.damageTexts.push({
-        x: this.x + (Math.random() - 0.5) * 16,
-        y: this.y - this.radius - 8,
-        text: displayDamage,
-        life: 0.55
-      });
+      state.damageTexts.push({ x: this.x + (Math.random() - 0.5) * 16, y: this.y - this.radius - 8, text: displayDamage, life: 0.55 });
     }
 
     const currentRatio = this.health / this.maxHealth;
@@ -313,13 +271,13 @@ export class CorruptedNest {
       this.alive = false;
       if (state.camera) state.camera.addTrauma(CONFIG.JUICE.trauma.nestDestroy || 0.5);
       triggerHitStop(CONFIG.JUICE.hitStop.nestDestroy || 0.06);
+      spawnShockwave(this.x, this.y, { radius: 24, maxRadius: 620, color: '#68d391', speed: 780, lineWidth: 6.5 });
 
       if (state.decalManager) {
         state.decalManager.addScorch(this.x, this.y, 45);
         state.decalManager.addSplatter(this.x, this.y, { type: 'corrupt', radius: 40, count: 18 });
       }
-
-      Telemetry.recordEvent('WORLD', 'Corrupted Nest Cleansed!');
+      Telemetry.recordEvent('WORLD', 'Corrupted Nest Cleansed! Loot vacuum triggered.');
 
       if (state.pickupManager) {
         for (let i = 0; i < 6; i++) {
@@ -329,6 +287,7 @@ export class CorruptedNest {
         for (let i = 0; i < 2 + bonusScrap; i++) {
           state.pickupManager.spawn(this.x + (Math.random() - 0.5) * 30, this.y + (Math.random() - 0.5) * 30, 'tech', 1);
         }
+        state.pickupManager.vacuumInRadius(this.x, this.y, 900);
       }
     }
   }
@@ -344,8 +303,7 @@ export class CorruptedNest {
         const a = (i * Math.PI * 2) / count;
         const ex = this.x + Math.cos(a) * (this.radius + 20);
         const ey = this.y + Math.sin(a) * (this.radius + 20);
-        const type = i % 3 === 0 ? 'dasher' : 'sprout';
-        state.enemyManager.enemies.push(new Enemy(ex, ey, type));
+        state.enemyManager.enemies.push(new Enemy(ex, ey, i % 3 === 0 ? 'dasher' : 'sprout'));
       }
     }
   }
@@ -353,9 +311,7 @@ export class CorruptedNest {
   update(dt, player, enemyManager) {
     if (!this.alive) return;
     if (this.hitFlashTimer > 0) this.hitFlashTimer -= dt;
-
-    const distToPlayer = Math.hypot(player.x - this.x, player.y - this.y);
-    if (distToPlayer < 750) {
+    if (Math.hypot(player.x - this.x, player.y - this.y) < 750) {
       this.spawnTimer += dt;
       if (this.spawnTimer >= this.spawnInterval) {
         this.spawnTimer = 0;
@@ -370,27 +326,14 @@ export class CorruptedNest {
     if (!this.alive) return;
     ctx.save();
     ctx.translate(this.x, this.y);
-
     const pulse = Math.sin(performance.now() / 250) * 3;
-
     ctx.fillStyle = 'rgba(112, 38, 52, 0.25)';
-    ctx.beginPath();
-    ctx.arc(0, 0, this.radius + 14 + pulse, 0, Math.PI * 2);
-    ctx.fill();
-
+    ctx.beginPath(); ctx.arc(0, 0, this.radius + 14 + pulse, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = this.hitFlashTimer > 0 ? '#ffffff' : '#4a1525';
-    ctx.strokeStyle = '#e53e3e';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
+    ctx.strokeStyle = '#e53e3e'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#fc8181';
-    ctx.beginPath();
-    ctx.arc(0, 0, 10 + pulse * 0.5, 0, Math.PI * 2);
-    ctx.fill();
-
+    ctx.beginPath(); ctx.arc(0, 0, 10 + pulse * 0.5, 0, Math.PI * 2); ctx.fill();
     const barW = 46;
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(-barW / 2, -this.radius - 12, barW, 5);

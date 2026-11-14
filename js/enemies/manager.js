@@ -1,4 +1,4 @@
-// js/enemies/manager.js — Менеджер спавну хвиль ворогів, засідок та стрес-тестів
+// js/enemies/manager.js — Менеджер синусоїдальних хвиль ворогів, засідок та стрес-тестів
 
 import { CONFIG } from '../config.js';
 import { state } from '../state.js';
@@ -11,9 +11,18 @@ export class EnemyManager {
     this.enemies = [];
     this.grid = new SpatialGrid(CONFIG.SPATIAL_GRID ? CONFIG.SPATIAL_GRID.cellSize : 140);
     this.spawnTimer = 0;
-    this.swarmTimer = 0;
     this.rearCapTimer = 0;
     this.elapsedRunTime = 0;
+
+    this.waveNumber = 1;
+    this.waveTimer = 0;
+    this.wavePhase = 'surge';
+    this.waveIntensity = 0.55;
+    this.breatherTimeLeft = 0;
+    this.ambushTriggeredInWave = false;
+
+    this._rearBuffer = [];
+    this._removeIndices = new Set();
     this.spawnWarden();
   }
 
@@ -22,40 +31,89 @@ export class EnemyManager {
     for (let i = 0; i < count; i++) {
       const angle = (i * Math.PI * 2) / count;
       const dist = 140 + Math.random() * 85;
-      this.enemies.push(new Enemy(player.x + Math.cos(angle) * dist, player.y + Math.sin(angle) * dist, 'sprout'));
+      this.enemies.push(new Enemy(player.x + Math.cos(angle) * dist, player.y + Math.sin(angle) * dist, 'sprout', this.waveNumber));
     }
   }
 
   spawnWarden() {
     const pos = CONFIG.WORLD.wardenPos;
-    this.enemies.push(new Enemy(pos.x, pos.y, 'warden'));
+    this.enemies.push(new Enemy(pos.x, pos.y, 'warden', 1));
   }
 
-  update(dt, player, camera, canvasWidth, canvasHeight, activeNestsCount = 7) {
+  updateWaveCycle(dt, player, canvasWidth, canvasHeight) {
+    const waveCfg = CONFIG.ENEMIES.WAVE;
+    this.waveTimer += dt;
+
+    if (this.waveTimer >= waveCfg.cycleDuration) {
+      this.waveTimer -= waveCfg.cycleDuration;
+      this.waveNumber++;
+      this.ambushTriggeredInWave = false;
+      Telemetry.recordEvent('WAVE', `Wave ${this.waveNumber} incoming!`);
+    }
+
+    const surgeEnd = waveCfg.surgeDuration;
+    const ebbEnd = surgeEnd + waveCfg.ebbDuration;
+
+    if (this.waveTimer < surgeEnd) {
+      this.wavePhase = 'surge';
+      this.waveIntensity = 0.55 + 0.45 * Math.sin((this.waveTimer / surgeEnd) * Math.PI * 0.75);
+      this.breatherTimeLeft = 0;
+
+      if (!this.ambushTriggeredInWave && this.waveTimer >= waveCfg.ambushTriggerTime) {
+        this.ambushTriggeredInWave = true;
+        this.triggerAmbushSwarm(player, canvasWidth, canvasHeight);
+      }
+    } else if (this.waveTimer < ebbEnd) {
+      this.wavePhase = 'ebb';
+      this.waveIntensity = 0.87 * Math.cos(((this.waveTimer - surgeEnd) / waveCfg.ebbDuration) * Math.PI * 0.5);
+      this.breatherTimeLeft = 0;
+    } else {
+      if (this.wavePhase !== 'breather') {
+        Telemetry.recordEvent('WAVE', `Breather window (${Math.round(waveCfg.cycleDuration - ebbEnd)}s)`);
+      }
+      this.wavePhase = 'breather';
+      this.waveIntensity = 0;
+      this.breatherTimeLeft = Math.max(0, waveCfg.cycleDuration - this.waveTimer);
+    }
+  }
+
+  update(dt, player, camera, canvasWidth, canvasHeight, activeNestsCount = CONFIG.WORLD.nestCountRing1) {
     this.grid.clear();
     for (let i = 0; i < this.enemies.length; i++) {
       if (this.enemies[i].alive) this.grid.insert(this.enemies[i]);
     }
 
     this.elapsedRunTime += dt;
+    this.updateWaveCycle(dt, player, canvasWidth, canvasHeight);
+
     const cfg = CONFIG.ENEMIES;
+    const waveCfg = cfg.WAVE;
+    const isExtractionAlert = Boolean(player.carryingCore || (state.worldManager && state.worldManager.transferActive));
     const progress = Math.min(1.0, this.elapsedRunTime / cfg.rampTimeSeconds);
-    const nestMult = 0.6 + (activeNestsCount / 7) * 0.4;
-    const surgeMultiplier = (player.carryingCore || (state.worldManager && state.worldManager.transferActive)) ? 0.5 : 1.0;
-    const currentInterval = ((cfg.initialSpawnInterval - (progress * (cfg.initialSpawnInterval - cfg.minimumSpawnInterval))) / nestMult) * surgeMultiplier;
+    const nestRatio = Math.min(1.0, activeNestsCount / Math.max(1, CONFIG.WORLD.nestCountRing1));
+    const nestMult = 0.75 + nestRatio * 0.75;
 
-    this.spawnTimer += dt;
-    if (this.spawnTimer >= currentInterval) {
-      this.spawnTimer = 0;
-      if (this.enemies.length < cfg.maxActive) {
-        this.spawnDirectionalWave(player, canvasWidth, canvasHeight, 2 + Math.floor(progress * 4));
+    if (this.wavePhase !== 'breather') {
+      const pressure = Math.min(1.0, this.waveIntensity * (0.7 + 0.3 * progress));
+      const baseInterval = waveCfg.maxInterval - pressure * (waveCfg.maxInterval - waveCfg.minInterval);
+      const currentInterval = (baseInterval / nestMult) * (isExtractionAlert ? 0.55 : 1.0);
+
+      this.spawnTimer += dt;
+      if (this.spawnTimer >= currentInterval) {
+        this.spawnTimer = 0;
+        if (this.enemies.length < cfg.maxActive) {
+          const packCount = 3 + Math.floor(pressure * 4 + Math.min(4, (this.waveNumber - 1) * 0.7));
+          this.spawnDirectionalWave(player, canvasWidth, canvasHeight, packCount);
+        }
       }
-    }
-
-    this.swarmTimer += dt;
-    if (this.swarmTimer >= cfg.swarmInterval) {
-      this.swarmTimer = 0;
-      this.triggerAmbushSwarm(player, canvasWidth, canvasHeight);
+    } else if (isExtractionAlert) {
+      this.spawnTimer += dt;
+      if (this.spawnTimer >= waveCfg.breatherAlertInterval) {
+        this.spawnTimer = 0;
+        if (this.enemies.length < cfg.maxActive) this.spawnDirectionalWave(player, canvasWidth, canvasHeight, 3);
+      }
+    } else {
+      this.spawnTimer = 0;
     }
 
     for (let i = this.enemies.length - 1; i >= 0; i--) {
@@ -63,9 +121,7 @@ export class EnemyManager {
       e.update(dt, player, this.enemies);
       const dx = e.x - player.x;
       const dy = e.y - player.y;
-      if (e.typeKey !== 'warden' && (dx * dx + dy * dy) > cfg.despawnRadius * cfg.despawnRadius) {
-        e.alive = false;
-      }
+      if (e.typeKey !== 'warden' && !e.isTitan && (dx * dx + dy * dy) > cfg.despawnRadius * cfg.despawnRadius) e.alive = false;
       if (!e.alive) this.enemies.splice(i, 1);
     }
 
@@ -79,24 +135,40 @@ export class EnemyManager {
   enforceRearChaserCap(player) {
     if (Math.hypot(player.vx, player.vy) <= 10) return;
     const moveAngle = Math.atan2(player.vy, player.vx);
-    const rearEnemies = [];
+    this._rearBuffer.length = 0;
 
     for (let i = 0; i < this.enemies.length; i++) {
       const e = this.enemies[i];
-      if (e.typeKey === 'warden') continue;
+      if (e.typeKey === 'warden' || e.isTitan) continue;
       let diff = Math.abs(Math.atan2(e.y - player.y, e.x - player.x) - moveAngle);
       if (diff > Math.PI) diff = Math.PI * 2 - diff;
       if (diff > (115 * Math.PI) / 180) {
-        rearEnemies.push({ index: i, distSq: Math.pow(e.x - player.x, 2) + Math.pow(e.y - player.y, 2) });
+        const dx = e.x - player.x;
+        const dy = e.y - player.y;
+        this._rearBuffer.push({ index: i, distSq: dx * dx + dy * dy });
       }
     }
 
     const maxRear = CONFIG.ENEMIES.maxRearChasers;
-    if (rearEnemies.length > maxRear) {
-      rearEnemies.sort((a, b) => b.distSq - a.distSq);
-      const removeIndices = new Set(rearEnemies.slice(0, rearEnemies.length - maxRear).map(r => r.index));
-      this.enemies = this.enemies.filter((_, idx) => !removeIndices.has(idx));
+    if (this._rearBuffer.length > maxRear) {
+      this._rearBuffer.sort((a, b) => b.distSq - a.distSq);
+      this._removeIndices.clear();
+      const removeCount = this._rearBuffer.length - maxRear;
+      for (let i = 0; i < removeCount; i++) this._removeIndices.add(this._rearBuffer[i].index);
+
+      let writeIdx = 0;
+      for (let i = 0; i < this.enemies.length; i++) {
+        if (!this._removeIndices.has(i)) this.enemies[writeIdx++] = this.enemies[i];
+      }
+      this.enemies.length = writeIdx;
     }
+  }
+
+  isInsideTerraformedZone(x, y) {
+    const lm = state.worldManager && state.worldManager.landmark;
+    if (!lm || !lm.repaired) return false;
+    const r = CONFIG.WORLD.terraformedRadius;
+    return (x - lm.x) * (x - lm.x) + (y - lm.y) * (y - lm.y) < r * r;
   }
 
   spawnDirectionalWave(player, canvasWidth, canvasHeight, count = 3) {
@@ -116,27 +188,26 @@ export class EnemyManager {
 
       const x = player.x + Math.cos(spawnAngle) * spawnDist;
       const y = player.y + Math.sin(spawnAngle) * spawnDist;
-
-      if (state.worldManager && state.worldManager.landmark && state.worldManager.landmark.repaired) {
-        const lm = state.worldManager.landmark;
-        if (Math.pow(x - lm.x, 2) + Math.pow(y - lm.y, 2) < Math.pow(CONFIG.WORLD.terraformedRadius, 2)) continue;
-      }
+      if (this.isInsideTerraformedZone(x, y)) continue;
 
       const roll = Math.random();
-      const type = roll < 0.18 ? 'dasher' : roll < 0.38 ? 'stalker' : 'sprout';
-      this.enemies.push(new Enemy(x, y, type));
+      const type = roll < 0.22 ? 'dasher' : roll < 0.44 ? 'stalker' : 'sprout';
+      this.enemies.push(new Enemy(x, y, type, this.waveNumber));
     }
   }
 
   triggerAmbushSwarm(player, canvasWidth, canvasHeight) {
-    Telemetry.recordEvent('SURGE', 'Swarm Ambush surrounding!');
-    const count = 16;
+    Telemetry.recordEvent('SURGE', `Wave ${this.waveNumber} Ambush surrounding!`);
+    const count = Math.min(32, 14 + (this.waveNumber - 1) * 3);
     const spawnDist = Math.hypot(canvasWidth / 2, canvasHeight / 2) + 80;
 
     for (let i = 0; i < count; i++) {
       if (this.enemies.length >= CONFIG.ENEMIES.maxActive) break;
       const angle = (i * Math.PI * 2) / count;
-      this.enemies.push(new Enemy(player.x + Math.cos(angle) * spawnDist, player.y + Math.sin(angle) * spawnDist, i % 4 === 0 ? 'dasher' : 'sprout'));
+      const x = player.x + Math.cos(angle) * spawnDist;
+      const y = player.y + Math.sin(angle) * spawnDist;
+      if (this.isInsideTerraformedZone(x, y)) continue;
+      this.enemies.push(new Enemy(x, y, i % 4 === 0 ? 'dasher' : 'sprout', this.waveNumber));
     }
   }
 

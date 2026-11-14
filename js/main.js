@@ -13,8 +13,9 @@ import { PixiWorldRenderer } from './render/pixiWorld.js';
 import { PixiEntitiesRenderer } from './render/pixiEntities.js';
 import { PixiWeaponsRenderer } from './render/pixiWeapons.js';
 import { WorldManager } from './world/manager.js';
+import { renderOutpostHUD } from './world/outpost.js';
 import { WeaponManager } from './weapons/manager.js';
-import { EVOLUTIONS } from './weapons/catalog.js';
+import { generateDraftCards } from './weapons/upgrades.js';
 import { Player } from './player.js';
 import { EnemyManager } from './enemies/manager.js';
 import {
@@ -24,7 +25,8 @@ import {
   renderDraftOverlay,
   renderWorkshopOverlay,
   renderPauseMenu,
-  renderLandmarkTerminalHUD
+  renderLandmarkTerminalHUD,
+  renderSanctuaryHUD
 } from './render/ui.js';
 
 const canvas = document.getElementById('gameCanvas');
@@ -98,45 +100,19 @@ function resizeCanvas() {
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
-const UPGRADE_POOL = [
-  { id: 'blaster_tune', title: 'OVERCLOCK BLASTER', weaponName: 'Tech Blaster', desc: '+6 Damage, +20% Fire Rate', apply: () => { const c = state.weaponManager.getConfig('blaster'); if (c) { c.damage += 6; c.fireRate = Math.max(0.16, c.fireRate * 0.8); } } },
-  { id: 'scrap_saw_weapon', title: 'SCRAP SAW (ORBITAL)', weaponName: 'Scrap Saw', desc: 'Mount orbital circular saw blade', apply: () => { if (!state.weaponManager.hasWeapon('Scrap Saw')) state.weaponManager.addWeaponByKey('saw'); else { const c = state.weaponManager.getConfig('saw'); c.count = Math.min(4, c.count + 1); c.damage += 6; } } },
-  { id: 'bio_mortar_weapon', title: 'BIO-SPORE MORTAR', weaponName: 'Bio-Spore Mortar', desc: 'Lob spores creating lingering slowing AoE clouds', apply: () => { if (!state.weaponManager.hasWeapon('Bio-Spore Mortar')) state.weaponManager.addWeaponByKey('mortar'); else { const c = state.weaponManager.getConfig('mortar'); c.damage += 14; c.zoneRadius = Math.min(120, c.zoneRadius + 15); } } },
-  { id: 'tesla_arc_weapon', title: 'TESLA ARC (CHAIN)', weaponName: 'Tesla Arc', desc: 'Unleash chained lightning bouncing between foes', apply: () => { if (!state.weaponManager.hasWeapon('Tesla Arc')) state.weaponManager.addWeaponByKey('tesla'); else { const c = state.weaponManager.getConfig('tesla'); c.damage += 8; c.chainCount += 1; } } },
-  { id: 'aegis_drones_weapon', title: 'AEGIS DRONES (ORBITAL)', weaponName: 'Aegis Drones', desc: 'Deploy orbiting combat drones with laser interceptors', apply: () => { if (!state.weaponManager.hasWeapon('Aegis Drones')) state.weaponManager.addWeaponByKey('drone'); else { const c = state.weaponManager.getConfig('drone'); c.count = Math.min(4, c.count + 1); c.damage += 5; } } },
-  { id: 'plasma_purifier_weapon', title: 'PLASMA PURIFIER (CONE)', weaponName: 'Plasma Purifier', desc: 'Unleash continuous conical stream of incinerating plasma', apply: () => { if (!state.weaponManager.hasWeapon('Plasma Purifier')) state.weaponManager.addWeaponByKey('flamer'); else { const c = state.weaponManager.getConfig('flamer'); c.damage += 18; c.range = Math.min(260, c.range + 25); } } },
-  { id: 'static_aura_weapon', title: 'STATIC AURA (AURA)', weaponName: 'Static Aura', desc: 'Emit pulsing electromagnetic field slowing and shocking nearby foes', apply: () => { if (!state.weaponManager.hasWeapon('Static Aura')) state.weaponManager.addWeaponByKey('staticAura'); else { const c = state.weaponManager.getConfig('staticAura'); c.damage += 5; c.radius = Math.min(180, c.radius + 15); } } },
-  { id: 'nanite_regen', title: 'NANITE REPAIR', desc: '+1.2 HP/sec Passive Regeneration', apply: () => { state.player.healthRegenRate += 1.2; } },
-  { id: 'magnet_pulse', title: 'MAGNET PULSE', desc: '+45% Pickup Range & Instant Vacuum', apply: () => { CONFIG.PLAYER.pickupRadius = Math.round(CONFIG.PLAYER.pickupRadius * 1.45); for (const p of state.pickupManager.pickups) p.isMagnetized = true; } },
-  { id: 'shield_up', title: 'AEGIS BATTERY', desc: '+1 Max Shield Charge & Instant Recharge', apply: () => { state.player.maxShieldCharges++; state.player.shieldCharges = state.player.maxShieldCharges; } },
-  { id: 'thrusters', title: 'OVERDRIVE SERVOS', desc: '+15% Move Speed', apply: () => { state.player.speed = Math.round(state.player.speed * 1.15); } },
-  { id: 'titan_armor', title: 'TITAN CHASSIS', desc: '+40 Max HP & Full Repair', apply: () => { state.player.maxHealth += 40; state.player.heal(state.player.maxHealth); } }
-];
-
 const WORKSHOP_PERKS = [
   { key: 'chassisArmor', title: 'CHASSIS ARMOR', costBase: 3, costScale: 2, desc: '+15 Max Base HP permanently', buy: () => state.player.applyMetaUpgrades(false) },
   { key: 'engineSpeed', title: 'MOTOR TUNING', costBase: 4, costScale: 3, desc: '+8 Base Movement Speed permanently', buy: () => state.player.applyMetaUpgrades(false) },
   { key: 'shieldCapacitor', title: 'SHIELD CAPACITOR', costBase: 5, costScale: 4, desc: '-2.0s Shield Recharge Time permanently', buy: () => state.player.applyMetaUpgrades(false) },
-  { key: 'naniteScavenge', title: 'NANITE HARVESTER', costBase: 6, costScale: 5, desc: '+1 Extra Tech Scrap from Nests', buy: () => {} }
+  { key: 'naniteScavenge', title: 'NANITE HARVESTER', costBase: 6, costScale: 5, desc: '+1 Extra Tech Scrap from Nests', buy: () => {} },
+  { key: 'cargoSecurity', title: 'HOLD SECURITY', maxRank: 2, costBase: 5, costScale: 5, desc: 'Reduce scrap lost on death (50% → 40% → 25%)', buy: () => {} }
 ];
 
 function triggerLevelUp() {
   if (state.isDrafting) { state.pendingLevelUps++; return; }
   state.isDrafting = true;
   state.timeScale = 0.08;
-  const availableEvolutions = [];
-  for (const [key, evo] of Object.entries(EVOLUTIONS)) {
-    const resultCfg = state.weaponManager.getConfig(evo.resultKey);
-    if (resultCfg && !state.weaponManager.hasWeapon(resultCfg.name) && evo.ingredients.every(name => state.weaponManager.hasWeapon(name))) {
-      availableEvolutions.push({ id: evo.id, title: `★ EVOLUTION: ${evo.name}`, desc: evo.desc, isEvolutionCard: true, apply: () => state.weaponManager.evolveWeapons(key) });
-    }
-  }
-  let candidates = [...UPGRADE_POOL];
-  if (state.weaponManager.slots.length >= state.weaponManager.maxSlots) {
-    candidates = candidates.filter(card => !card.weaponName || state.weaponManager.hasWeapon(card.weaponName));
-  }
-  const shuffled = candidates.sort(() => 0.5 - Math.random());
-  state.draftCards = availableEvolutions.length > 0 ? [availableEvolutions[0], ...shuffled.slice(0, 2)] : shuffled.slice(0, 3);
+  state.draftCards = generateDraftCards(state.weaponManager, 3);
   Telemetry.recordEvent('LEVEL', `Robot reached Level ${state.player.level}!`);
 }
 
@@ -152,6 +128,7 @@ function selectCard(index) {
 
 function buyWorkshopPerk(perk) {
   const rank = MetaProgression.perks[perk.key] || 0;
+  if (perk.maxRank !== undefined && rank >= perk.maxRank) return;
   const cost = perk.costBase + (rank * perk.costScale);
   if (MetaProgression.bankedTechScrap >= cost) {
     MetaProgression.bankedTechScrap -= cost;
@@ -169,20 +146,43 @@ window.addEventListener('keydown', (e) => {
     else if (state.isWorkshopOpen) { state.isWorkshopOpen = false; state.timeScale = 1.0; }
   }
   if (e.code === 'KeyG') state.player.godMode = !state.player.godMode;
-  if (e.code === 'KeyB' && !state.isPaused && Math.hypot(state.player.x, state.player.y) < 180) {
+  const domeBroken = state.worldManager && state.worldManager.sanctuary && state.worldManager.sanctuary.domeBroken;
+  if (e.code === 'KeyB' && !state.isPaused && !domeBroken && Math.hypot(state.player.x, state.player.y) < CONFIG.HUB.radius) {
     state.isWorkshopOpen = !state.isWorkshopOpen;
     state.timeScale = state.isWorkshopOpen ? 0.0 : 1.0;
   }
   if (e.code === 'KeyT' && state.enemyManager) state.enemyManager.triggerStressTestSwarm(state.player);
-  if (state.worldManager && state.worldManager.landmark && state.worldManager.landmark.repaired) {
+  if (e.code === 'KeyF' && state.worldManager && state.worldManager.landmark && state.worldManager.landmark.repaired) {
     if (Math.hypot(state.player.x - state.worldManager.landmark.x, state.player.y - state.worldManager.landmark.y) < CONFIG.WORLD.terraformedRadius) {
-      if (e.code === 'KeyE') state.worldManager.startRemoteTransfer();
-      if (e.code === 'KeyF') state.worldManager.fastTravelToHubWithTax(state.player);
+      state.worldManager.fastTravelToHubWithTax(state.player);
     }
   }
-  if (e.code === 'KeyE' && state.worldManager && state.worldManager.chests) {
-    for (const chest of state.worldManager.chests) {
-      if (!chest.opened && Math.hypot(state.player.x - chest.x, state.player.y - chest.y) < 65) { chest.open(state.player); break; }
+  if (e.code === 'KeyE' && !state.isPaused && !state.isDrafting && !state.isWorkshopOpen) {
+    let handled = false;
+    if (state.worldManager && state.worldManager.chests) {
+      for (const chest of state.worldManager.chests) {
+        if (!chest.opened && Math.hypot(state.player.x - chest.x, state.player.y - chest.y) < 65) {
+          chest.open(state.player);
+          handled = true;
+          break;
+        }
+      }
+    }
+    if (!handled && state.worldManager && state.worldManager.outposts) {
+      for (const outpost of state.worldManager.outposts) {
+        if (outpost.state === 'idle' && Math.hypot(state.player.x - outpost.x, state.player.y - outpost.y) <= outpost.captureRadius) {
+          handled = outpost.activate(state.player, state.enemyManager);
+          if (handled) break;
+        }
+      }
+    }
+    if (!handled && state.worldManager && state.worldManager.sanctuary) {
+      handled = state.worldManager.sanctuary.depositScrap(state.player);
+    }
+    if (!handled && state.worldManager && state.worldManager.landmark && state.worldManager.landmark.repaired) {
+      if (Math.hypot(state.player.x - state.worldManager.landmark.x, state.player.y - state.worldManager.landmark.y) < CONFIG.WORLD.terraformedRadius) {
+        state.worldManager.startRemoteTransfer();
+      }
     }
   }
   if (state.isDrafting) { if (e.key === '1') selectCard(0); if (e.key === '2') selectCard(1); if (e.key === '3') selectCard(2); }
@@ -204,7 +204,7 @@ window.addEventListener('click', (e) => {
     return;
   }
   if (state.isWorkshopOpen) {
-    const pw = 420, ph = 70, gap = 14, startX = canvas.width / 2 - pw / 2, startY = canvas.height / 2 - 130;
+    const pw = 440, ph = 60, gap = 12, startX = canvas.width / 2 - pw / 2, startY = canvas.height / 2 - 135;
     for (let i = 0; i < WORKSHOP_PERKS.length; i++) {
       const py = startY + i * (ph + gap);
       if (e.clientX >= startX && e.clientX <= startX + pw && e.clientY >= py && e.clientY <= py + ph) { buyWorkshopPerk(WORKSHOP_PERKS[i]); break; }
@@ -216,10 +216,16 @@ document.getElementById('btnCopyJSON').addEventListener('click', () => navigator
 document.getElementById('btnResetTelemetry').addEventListener('click', () => Telemetry.resetRun());
 
 function renderWorldLabelsOverlay() {
+  const sanc = state.worldManager && state.worldManager.sanctuary;
+  if (pixi.ready && sanc) sanc.renderOverlay(ctx);
+  if (pixi.ready && state.worldManager && state.worldManager.outposts) {
+    for (const outpost of state.worldManager.outposts) outpost.render(ctx);
+  }
+
   ctx.font = 'bold 12px monospace';
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#a0aec0';
-  ctx.fillText('SANCTUARY GATE (0, 0)', 0, 36);
+  ctx.fillStyle = sanc && sanc.domeBroken ? '#fc8181' : '#a0aec0';
+  ctx.fillText(sanc && sanc.domeBroken ? 'SANCTUARY GATE [BREACHED]' : 'SANCTUARY GATE (0, 0)', 0, 36);
 
   const lm = state.worldManager.landmark;
   if (lm) {
@@ -234,8 +240,12 @@ function renderWorldLabelsOverlay() {
   }
   for (const e of state.enemyManager.enemies) {
     if (e.alive && e.typeKey === 'warden') {
-      ctx.fillStyle = '#f687b3'; ctx.font = 'bold 11px monospace';
-      ctx.fillText(!e.isAwakened ? 'HIVE WARDEN [DORMANT]' : e.isCharging ? '!! CHARGE !!' : 'HIVE WARDEN (ELITE)', e.x, e.y - e.radius - 14);
+      ctx.fillStyle = e.isTitan ? '#ff0055' : '#f687b3';
+      ctx.font = 'bold 11px monospace';
+      const label = e.isTitan
+        ? 'ABYSSAL TITAN [INVULNERABLE]'
+        : !e.isAwakened ? 'HIVE WARDEN [DORMANT]' : e.isCharging ? '!! CHARGE !!' : 'HIVE WARDEN (ELITE)';
+      ctx.fillText(label, e.x, e.y - e.radius - 14);
     }
   }
   ctx.fillStyle = '#feb2b2'; ctx.font = 'bold 13px monospace';
@@ -268,7 +278,7 @@ function renderFrame() {
     ctx.translate(-camera.x, -camera.y);
     renderWorldGrid(ctx, canvas, camera, state.spriteManager);
     if (state.decalManager) state.decalManager.render(ctx, camera.x, camera.y, canvas.width, canvas.height);
-    renderSanctuaryHub(ctx, state.spriteManager);
+    renderSanctuaryHub(ctx, state.spriteManager, state.worldManager.sanctuary);
     state.worldManager.render(ctx);
     state.pickupManager.render(ctx, state.spriteManager);
     if (state.gibManager) state.gibManager.render(ctx);
@@ -282,16 +292,25 @@ function renderFrame() {
 
   state.worldManager.renderCompass(ctx, state.player, canvas.width, canvas.height);
   renderXPBar(ctx, canvas, state);
+  renderSanctuaryHUD(ctx, canvas, state);
   if (state.isDrafting) renderDraftOverlay(ctx, canvas, state);
   if (state.isWorkshopOpen) renderWorkshopOverlay(ctx, canvas, WORKSHOP_PERKS);
+  renderOutpostHUD(ctx, canvas, state.worldManager, state.player);
   renderLandmarkTerminalHUD(ctx, canvas, state);
   renderArsenalHUD(ctx, canvas, state);
   renderPlayerVitalsHUD(ctx, canvas, state);
   if (state.isPaused) renderPauseMenu(ctx, canvas);
 
-  if (Math.hypot(state.player.x, state.player.y) < 180 && !state.isWorkshopOpen && !state.isPaused) {
-    ctx.fillStyle = '#48bb78'; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'center';
+  const domeBroken = state.worldManager.sanctuary && state.worldManager.sanctuary.domeBroken;
+  if (!domeBroken && Math.hypot(state.player.x, state.player.y) < CONFIG.HUB.radius && !state.isWorkshopOpen && !state.isPaused) {
+    ctx.font = 'bold 13px monospace'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#48bb78';
     ctx.fillText('[B] OPEN SANCTUARY WORKSHOP', canvas.width / 2, canvas.height / 2 + 50);
+    const carriedScrap = Telemetry.metrics.resourcesCollected.techScrap;
+    if (carriedScrap > 0) {
+      ctx.fillStyle = '#ecc94b';
+      ctx.fillText(`[E] DEPOSIT SCRAP (+${carriedScrap} TO VAULT)`, canvas.width / 2, canvas.height / 2 + 70);
+    }
   }
   ctx.fillStyle = '#48bb78'; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'left';
   ctx.fillText(`EXPEDITION SCRAP: ${Telemetry.metrics.resourcesCollected.techScrap}`, 16, 28);

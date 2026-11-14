@@ -1,6 +1,6 @@
-// js/player.js — Модуль робота-хранителя: мобільність, дэш і щити
+// js/player.js — Модуль робота-хранителя: мобільність, дэш, щити і збереження скрапу
 
-import { CONFIG, MetaProgression } from './config.js';
+import { CONFIG, MetaProgression, saveMetaProgression } from './config.js';
 import { state, triggerHitStop, spawnShockwave, requestRunRestart } from './state.js';
 import { Telemetry } from './telemetry.js';
 
@@ -174,10 +174,23 @@ export class Player {
 
   die() {
     Telemetry.metrics.deaths++;
-    Telemetry.metrics.resourcesLostOnDeath.techScrap += Telemetry.metrics.resourcesCollected.techScrap;
+    const unbanked = Telemetry.metrics.resourcesCollected.techScrap;
+    const rates = CONFIG.ECONOMY.deathLossRates || [0.50, 0.40, 0.25];
+    const rank = Math.min(rates.length - 1, (MetaProgression.perks && MetaProgression.perks.cargoSecurity) || 0);
+    const lossRate = rates[rank];
+    const lost = Math.floor(unbanked * lossRate);
+    const saved = Math.max(0, unbanked - lost);
+
+    if (saved > 0) {
+      MetaProgression.bankedTechScrap += saved;
+      Telemetry.metrics.resourcesBanked.techScrap += saved;
+      saveMetaProgression();
+    }
+
+    Telemetry.metrics.resourcesLostOnDeath.techScrap += lost;
     Telemetry.metrics.resourcesCollected.techScrap = 0;
     Telemetry.metrics.resourcesCollected.bioEssence = 0;
-    Telemetry.recordEvent('DEATH', 'Robot destroyed! Lost unbanked scrap.');
+    Telemetry.recordEvent('DEATH', `Robot destroyed! Saved ${saved} Scrap, lost ${lost} (${Math.round(lossRate * 100)}%).`);
     this.resetRunProgression();
     requestRunRestart();
   }
@@ -190,6 +203,11 @@ export class Player {
     this.healthRegenRate = 0.5;
     this.carryingCore = false;
     this.invulnerableTimer = 1.5;
+    this.dashTimer = 0;
+    this.isDashing = false;
+    this.cruiseTimer = 0;
+    this.isCruising = false;
+    this.afterimages.length = 0;
   }
 
   update(dt) {
