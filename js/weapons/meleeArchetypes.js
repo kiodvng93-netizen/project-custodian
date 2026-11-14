@@ -119,7 +119,7 @@ export class OrbitalWeapon {
       }
       if (!next) break;
       this._chainHit.add(next);
-      next.takeDamage(dmg, current.x, current.y, false, true);
+      next.takeDamage(dmg, current.x, current.y);
       ctxData.spawnParticles(next.x, next.y);
       this.activeBeams.push({ fromX: current.x, fromY: current.y, toX: next.x, toY: next.y, color: 'rgba(129, 230, 217,', life: 0.1, maxLife: 0.1 });
       current = next;
@@ -231,7 +231,7 @@ export class ConeWeapon {
         let diff = Math.abs(Math.atan2(dy, dx) - baseAngle);
         if (diff > Math.PI) diff = Math.PI * 2 - diff;
         if (diff <= halfSpread) {
-          enemy.takeDamage(dmg * dt, this.owner.x, this.owner.y, false, true);
+          enemy.takeDamage(dmg * dt, this.owner.x, this.owner.y);
           enemy.plasmaBurnTimer = this.cfg.burnDuration;
           enemy.plasmaBurnDmg = this.cfg.burnDamage;
         }
@@ -284,7 +284,7 @@ export class AuraWeapon {
       const dy = enemy.y - this.owner.y;
       const dist = Math.hypot(dx, dy);
       if (dist <= radius + enemy.radius) {
-        enemy.takeDamage(dmg, this.owner.x, this.owner.y, false, true);
+        enemy.takeDamage(dmg, this.owner.x, this.owner.y);
         if (this.cfg.slowFactor) {
           enemy.sporeSlowTimer = 0.35;
           enemy.sporeSlowMult = this.cfg.slowFactor;

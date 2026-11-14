@@ -28,6 +28,13 @@ export class DecalManager {
     this.chunkSize = (CONFIG.DECALS && CONFIG.DECALS.chunkSize) || 512;
     this.maxChunks = (CONFIG.DECALS && CONFIG.DECALS.maxChunks) || 128;
     this.chunks = new Map();
+    // Викликається з ключем чанку при витісненні/очищенні — рендерер звільняє свою текстуру
+    this.onEvict = null;
+  }
+
+  evictChunk(key) {
+    this.chunks.delete(key);
+    if (this.onEvict) this.onEvict(key);
   }
 
   getChunkKey(cx, cy) {
@@ -48,7 +55,7 @@ export class DecalManager {
             oldestKey = k;
           }
         }
-        if (oldestKey) this.chunks.delete(oldestKey);
+        if (oldestKey) this.evictChunk(oldestKey);
       }
 
       chunk = new DecalChunk(cx, cy, this.chunkSize);
@@ -184,6 +191,6 @@ export class DecalManager {
   }
 
   clear() {
-    this.chunks.clear();
+    for (const key of [...this.chunks.keys()]) this.evictChunk(key);
   }
 }

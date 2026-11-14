@@ -170,6 +170,13 @@ export class PixiCore {
     return tex;
   }
 
+  releaseCanvasTexture(key) {
+    const tex = this.canvasTextures.get(key);
+    if (!tex) return;
+    tex.destroy(true);
+    this.canvasTextures.delete(key);
+  }
+
   updateCamera(camera, viewW, viewH) {
     if (!this.ready || !camera) return;
     this.worldRoot.position.set(viewW * 0.5 + camera.shakeX, viewH * 0.5 + camera.shakeY);

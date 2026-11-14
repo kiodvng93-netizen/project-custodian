@@ -134,7 +134,7 @@ export class WeaponManager {
         if (!enemy.alive) continue;
         if (Math.hypot(enemy.x - x, enemy.y - y) <= radius + enemy.radius) {
           const wasAlive = enemy.alive;
-          enemy.takeDamage(impactDmg, x, y, false, true);
+          enemy.takeDamage(impactDmg, x, y);
           if (wasAlive && !enemy.alive) killCount++;
         }
       }

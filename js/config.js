@@ -9,10 +9,7 @@ export const CONFIG = {
   },
 
   WORLD: {
-    ring1Radius: 15000,
-    ring2Radius: 28000,
-    ring3Radius: 42000,
-    ring4Radius: 60000,
+    ring1Radius: 15000, // межа світу: гравець не може вийти за неї
     tileGridSize: 64,
     nestCountRing1: 10,
     outpostCount: 3,
@@ -22,17 +19,6 @@ export const CONFIG = {
     terraformedRadius: 320,
     ruinsClusterCount: 40,
     chestSpawnChance: 0.65,
-  },
-
-  HAZARDS: {
-    cellSize: 520,
-    slimeSlowFactor: 0.50,
-    ring2SpawnChance: 0.68,
-    ring3SpawnChance: 0.88,
-    minRadius: 155,
-    maxRadius: 235,
-    trackPerkResistPerRank: 0.35,
-    trackPerkMaxRank: 2,
   },
 
   OUTPOST: {
@@ -58,6 +44,7 @@ export const CONFIG = {
     campGraceTime: 150,
     enrageTime: 180,
     campDecayRate: 0.45,
+    maxTitans: 14,
   },
 
   PLAYER: {
@@ -147,10 +134,6 @@ export const CONFIG = {
     despawnRadius: 1800,
     hubSafeRadius: 360,
     rampTimeSeconds: 120,
-    ARMOR: {
-      frontHalfAngle: (65 * Math.PI) / 180,
-      bulletDamageMult: 0.20,
-    },
     WAVE: {
       cycleDuration: 40,
       surgeDuration: 22,
@@ -199,17 +182,25 @@ export const CONFIG = {
 };
 
 const DEFAULT_META_SAVE = {
-  version: 1,
+  version: 2,
   bankedTechScrap: 0,
   perks: {
     chassisArmor: 0,
     engineSpeed: 0,
     shieldCapacitor: 0,
     naniteScavenge: 0,
-    cargoSecurity: 0,
-    terrainTracks: 0
+    cargoSecurity: 0
   }
 };
+
+// v1 → v2: перк ALL-TERRAIN TRACKS видалено (він ніколи не працював).
+// Повертаємо витрачений на нього скрап (ранг 1 = 4, ранг 2 = 9).
+function refundRemovedTracksPerk(parsed) {
+  const rank = Math.min(2, Number(parsed.perks && parsed.perks.terrainTracks) || 0);
+  let refund = 0;
+  for (let r = 0; r < rank; r++) refund += 4 + r * 5;
+  return refund;
+}
 
 export function loadMetaProgression() {
   try {
@@ -217,15 +208,14 @@ export function loadMetaProgression() {
     if (!raw) return JSON.parse(JSON.stringify(DEFAULT_META_SAVE));
     const parsed = JSON.parse(raw);
     return {
-      version: 1,
-      bankedTechScrap: Number(parsed.bankedTechScrap) || 0,
+      version: 2,
+      bankedTechScrap: (Number(parsed.bankedTechScrap) || 0) + refundRemovedTracksPerk(parsed),
       perks: {
         chassisArmor: Number(parsed.perks && parsed.perks.chassisArmor) || 0,
         engineSpeed: Number(parsed.perks && parsed.perks.engineSpeed) || 0,
         shieldCapacitor: Number(parsed.perks && parsed.perks.shieldCapacitor) || 0,
         naniteScavenge: Number(parsed.perks && parsed.perks.naniteScavenge) || 0,
-        cargoSecurity: Number(parsed.perks && parsed.perks.cargoSecurity) || 0,
-        terrainTracks: Number(parsed.perks && parsed.perks.terrainTracks) || 0
+        cargoSecurity: Number(parsed.perks && parsed.perks.cargoSecurity) || 0
       }
     };
   } catch (e) {

@@ -1,0 +1,36 @@
+# Project Custodian
+
+Top-down survivors-like (auto-weapons, level-up drafts, weapon evolutions) in an open circular world.
+You are a lone custodian robot. Carry Tech Scrap from chests and nests, bank it before you die,
+spend it in the Sanctuary Workshop on permanent perks. Vanilla JS, no build step.
+
+**Current focus:** make the Ring 1 loop fun. The world ends at `CONFIG.WORLD.ring1Radius` (15 000 px).
+Do not add Ring 2+, new resources or new systems until the core loop is fun.
+Open problems and priorities are listed in `docs/AUDIT-2026-11-14.md` (§2 bugs, §3 balance, §7 order).
+
+## Run
+- Static files only. Serve the repo root over HTTP. Opening `index.html` via `file://` breaks ES modules and image processing.
+  - VS Code Live Server → `http://127.0.0.1:5500`, or `python -m http.server 8123`.
+- PixiJS v8 comes from jsDelivr via the import map in `index.html`, **pinned to an exact version**. Don't change it to `@8`.
+- Dev keys: `` ` `` / `F2` telemetry HUD, `G` god mode, `T` stress swarm, `Esc`/`P` pause.
+
+## Architecture
+- `js/main.js`: boot, game loop, input, Workshop perk list, draft flow, HUD composition.
+- `js/config.js`: all balance numbers and the meta save (`localStorage` key `custodian_meta_save`, versioned, with migration in `loadMetaProgression`). **Treat `CONFIG` as read-only.** Per-run values belong on the player, `WeaponManager.runConfigs`, or `state`.
+- `js/state.js`: the single run-state object, shockwaves, hit-stop, restart callback. Modules share data through `state`; there are no `window.*` globals.
+- Simulation: `player.js`, `pickups.js`, `enemies/` (Enemy, EnemyManager waves, SpatialGrid), `weapons/` (catalog, upgrades/draft, 6 archetypes, projectiles, manager), `world/` (WorldManager, structures, sanctuary hub, outposts, minimap).
+- Rendering: PixiJS (WebGL) draws the world (`render/pixi*.js`). A transparent Canvas 2D layer on top draws HUD, labels and overlays (`render/ui.js`, plus `render(ctx)` methods). If Pixi fails to init, `main.js` falls back to the Canvas `render(ctx)` methods.
+- Carried (unbanked) scrap currently lives in `Telemetry.metrics.resourcesCollected.techScrap`. This is a known smell; read and write it through that path until it is moved.
+
+## Rules
+- **Done means wired and played.** A feature is done only when every module it touches is changed (often `world/` + `enemies/` + `player.js` + `weapons/`), and it was seen working in the browser. Never mark `[x]` in `PROJECT_STATE.md` otherwise. (v4.6 shipped armor and slime zones as config, rendering and HUD with no gameplay hook; they were removed.)
+- One feature per session. Commit when it works.
+- Keep files under ~300 lines; split by responsibility when they grow.
+- No defensive `a && a.b && a.b.c` chains for things that always exist (`CONFIG`, managers on `state` after boot).
+- Code comments are in Ukrainian; identifiers and UI strings in English. Match the surrounding style.
+- Changing save fields: bump `version` in `DEFAULT_META_SAVE` and migrate in `loadMetaProgression`.
+- `archive/` holds obsolete prototypes. Don't load or edit them.
+
+## Docs
+- `PROJECT_STATE.md`: status and roadmap (Ukrainian).
+- `docs/AUDIT-*.md`: audits; the latest one is the to-do source.

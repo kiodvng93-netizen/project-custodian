@@ -22,6 +22,8 @@ export class Player {
     this.shieldTimer = 0;
     this.shieldRechargeTime = CONFIG.PLAYER.shieldRechargeTime;
 
+    // Бонуси драфта за забіг — окремо від мета-перків, щоб покупка у Воркшопі їх не стирала
+    this.resetRunBonuses();
     this.applyMetaUpgrades(true);
 
     this.invulnerableTimer = 0;
@@ -54,15 +56,22 @@ export class Player {
     this.bindInputs();
   }
 
+  resetRunBonuses() {
+    this.runSpeedMult = 1.0;
+    this.runBonusHealth = 0;
+    this.runBonusShields = 0;
+  }
+
+  // Перераховує статы з бази + мета-перків + бонусів драфта поточного забігу
   applyMetaUpgrades(isFirstSpawn = false) {
-    const perks = (MetaProgression && MetaProgression.perks) || { chassisArmor: 0, engineSpeed: 0, shieldCapacitor: 0 };
+    const perks = MetaProgression.perks;
     const prevMaxHp = this.maxHealth || CONFIG.PLAYER.baseHealth;
     const hpRatio = isFirstSpawn ? 1.0 : (this.health / prevMaxHp);
 
-    this.speed = CONFIG.PLAYER.baseSpeed + (perks.engineSpeed * 8);
-    this.maxHealth = CONFIG.PLAYER.baseHealth + (perks.chassisArmor * 15);
+    this.speed = Math.round((CONFIG.PLAYER.baseSpeed + (perks.engineSpeed * 8)) * this.runSpeedMult);
+    this.maxHealth = CONFIG.PLAYER.baseHealth + (perks.chassisArmor * 15) + this.runBonusHealth;
     this.health = isFirstSpawn ? this.maxHealth : Math.min(this.maxHealth, this.maxHealth * hpRatio);
-    this.maxShieldCharges = CONFIG.PLAYER.baseShieldCharges;
+    this.maxShieldCharges = CONFIG.PLAYER.baseShieldCharges + this.runBonusShields;
     if (isFirstSpawn) {
       this.shieldCharges = this.maxShieldCharges;
       this.shieldTimer = 0;
@@ -75,9 +84,18 @@ export class Player {
   bindInputs() {
     window.addEventListener('keydown', (e) => {
       this.handleKey(e.code, true);
-      if (e.code === 'Space') { e.preventDefault(); this.triggerDash(); }
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (!state.isPaused && !state.isDrafting && !state.isWorkshopOpen) this.triggerDash();
+      }
     });
     window.addEventListener('keyup', (e) => this.handleKey(e.code, false));
+    // Після alt-tab keyup не приходить — скидаємо всі напрямки
+    window.addEventListener('blur', () => this.releaseKeys());
+  }
+
+  releaseKeys() {
+    this.keys.up = this.keys.down = this.keys.left = this.keys.right = false;
   }
 
   handleKey(code, pressed) {
@@ -199,6 +217,7 @@ export class Player {
     this.x = 0; this.y = 0; this.vx = 0; this.vy = 0;
     this.level = 1; this.xp = 0; this.xpToNext = 4;
     this.growthScale = 1.0; this.radius = 18;
+    this.resetRunBonuses();
     this.applyMetaUpgrades(true);
     this.healthRegenRate = 0.5;
     this.carryingCore = false;

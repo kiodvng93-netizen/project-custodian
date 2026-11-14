@@ -69,8 +69,7 @@ export class ProjectileWeapon {
           {
             size: this.cfg.projectileSize,
             pierce: this.cfg.pierce,
-            color: this.cfg.color,
-            armorPiercing: Boolean(this.cfg.armorPiercing)
+            color: this.cfg.color
           }
         ));
         this.cooldown = this.cfg.fireRate;
@@ -92,7 +91,7 @@ export class ProjectileWeapon {
           ctxData.projectiles.push(new Projectile(
             origin.x, origin.y, Math.cos(a) * speed, Math.sin(a) * speed,
             dmg, 280,
-            { size: 7, pierce: 1, color: this.cfg.color, armorPiercing: Boolean(this.cfg.armorPiercing) }
+            { size: 7, pierce: 1, color: this.cfg.color }
           ));
         }
       }
@@ -194,7 +193,7 @@ export class ChainWeapon {
     this.hitSet.add(first);
     const dmg = this.cfg.damage * (this.owner.godMode ? 15 : 1);
 
-    first.takeDamage(dmg, this.owner.x, this.owner.y, false, true);
+    first.takeDamage(dmg, this.owner.x, this.owner.y);
     ctxData.spawnParticles(first.x, first.y);
     this.activeBolts.push({ fromX: this.owner.x, fromY: this.owner.y, toX: first.x, toY: first.y, life: 0.12, maxLife: 0.12 });
 
@@ -203,7 +202,7 @@ export class ChainWeapon {
       const next = findNearestTarget(current.x, current.y, this.cfg.chainRange, enemies, this.hitSet);
       if (!next) break;
       this.hitSet.add(next);
-      next.takeDamage(dmg * 0.9, current.x, current.y, false, true);
+      next.takeDamage(dmg * 0.9, current.x, current.y);
       ctxData.spawnParticles(next.x, next.y);
       this.activeBolts.push({ fromX: current.x, fromY: current.y, toX: next.x, toY: next.y, life: 0.12, maxLife: 0.12 });
       current = next;

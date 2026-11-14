@@ -142,6 +142,10 @@ export class SanctuaryHub {
 
   spawnTitanRing(player, enemyManager, count = 14, ringRadius = 480) {
     if (!enemyManager) return;
+    // Титани не деспавняться й ігнорують maxActive — тримаємо стелю живих
+    let alive = 0;
+    for (const e of enemyManager.enemies) if (e.isTitan && e.alive) alive++;
+    count = Math.min(count, CONFIG.HUB.maxTitans - alive);
     for (let i = 0; i < count; i++) {
       const a = (i * Math.PI * 2) / count;
       const titan = new Enemy(player.x + Math.cos(a) * ringRadius, player.y + Math.sin(a) * ringRadius, 'warden');

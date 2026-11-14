@@ -19,6 +19,8 @@ export class PixiWorldRenderer {
     this.landmarkAura = null;
 
     this.decalPool = new SpritePool(pixi.decalLayer);
+    // Витіснений чанк декалей → знищуємо його текстуру, інакше новий чанк з тим самим ключем малюється старим canvas
+    this.onDecalEvict = (key) => this.pixi.releaseCanvasTexture(`decal_${key}`);
     this.shadowPool = new SpritePool(pixi.shadowLayer);
     this.entityPool = new SpritePool(pixi.entityLayer);
     this.gridTex = null;
@@ -88,6 +90,7 @@ export class PixiWorldRenderer {
   syncDecals(decalManager, camera, viewW, viewH) {
     this.decalPool.beginFrame();
     if (decalManager) {
+      decalManager.onEvict = this.onDecalEvict;
       const cs = decalManager.chunkSize;
       const halfW = viewW * 0.5 + 64;
       const halfH = viewH * 0.5 + 64;

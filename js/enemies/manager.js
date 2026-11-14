@@ -23,6 +23,7 @@ export class EnemyManager {
 
     this._rearBuffer = [];
     this._removeIndices = new Set();
+    this.despawnRadius = CONFIG.ENEMIES.despawnRadius;
     this.spawnWarden();
   }
 
@@ -77,7 +78,13 @@ export class EnemyManager {
     }
   }
 
+  // Спавн одразу за краєм екрана; радіус деспавну завжди далі за спавн, інакше на великих екранах вороги зникали в наступному кадрі
+  getSpawnDistance(canvasWidth, canvasHeight, margin = 90) {
+    return Math.hypot(canvasWidth / 2, canvasHeight / 2) + margin;
+  }
+
   update(dt, player, camera, canvasWidth, canvasHeight, activeNestsCount = CONFIG.WORLD.nestCountRing1) {
+    this.despawnRadius = Math.max(CONFIG.ENEMIES.despawnRadius, this.getSpawnDistance(canvasWidth, canvasHeight) + 400);
     this.grid.clear();
     for (let i = 0; i < this.enemies.length; i++) {
       if (this.enemies[i].alive) this.grid.insert(this.enemies[i]);
@@ -121,7 +128,7 @@ export class EnemyManager {
       e.update(dt, player, this.enemies);
       const dx = e.x - player.x;
       const dy = e.y - player.y;
-      if (e.typeKey !== 'warden' && !e.isTitan && (dx * dx + dy * dy) > cfg.despawnRadius * cfg.despawnRadius) e.alive = false;
+      if (e.typeKey !== 'warden' && !e.isTitan && (dx * dx + dy * dy) > this.despawnRadius * this.despawnRadius) e.alive = false;
       if (!e.alive) this.enemies.splice(i, 1);
     }
 
@@ -178,7 +185,7 @@ export class EnemyManager {
     const isMoving = Math.hypot(player.vx, player.vy) > 10;
     const moveAngle = isMoving ? Math.atan2(player.vy, player.vx) : Math.random() * Math.PI * 2;
     const headingAway = (player.x * player.vx + player.y * player.vy) >= 0;
-    const spawnDist = Math.hypot(canvasWidth / 2, canvasHeight / 2) + 90;
+    const spawnDist = this.getSpawnDistance(canvasWidth, canvasHeight, 90);
 
     for (let i = 0; i < count; i++) {
       if (this.enemies.length >= cfg.maxActive) break;
@@ -199,7 +206,7 @@ export class EnemyManager {
   triggerAmbushSwarm(player, canvasWidth, canvasHeight) {
     Telemetry.recordEvent('SURGE', `Wave ${this.waveNumber} Ambush surrounding!`);
     const count = Math.min(32, 14 + (this.waveNumber - 1) * 3);
-    const spawnDist = Math.hypot(canvasWidth / 2, canvasHeight / 2) + 80;
+    const spawnDist = this.getSpawnDistance(canvasWidth, canvasHeight, 80);
 
     for (let i = 0; i < count; i++) {
       if (this.enemies.length >= CONFIG.ENEMIES.maxActive) break;

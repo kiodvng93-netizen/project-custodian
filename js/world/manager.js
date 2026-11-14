@@ -6,7 +6,6 @@ import { Telemetry } from '../telemetry.js';
 import { ObstacleWall, LootChest, Landmark, CorePickup, CorruptedNest } from './structures.js';
 import { SanctuaryHub } from './sanctuary.js';
 import { InsuranceOutpost } from './outpost.js';
-import { RingHazardManager } from './hazards.js';
 import { renderRadarMinimap } from './minimap.js';
 
 export class WorldManager {
@@ -18,7 +17,6 @@ export class WorldManager {
     const lm = CONFIG.WORLD.landmarkPos;
     this.landmark = new Landmark(lm.x, lm.y);
     this.sanctuary = new SanctuaryHub();
-    this.hazards = new RingHazardManager();
     this.coreDrop = null;
     this.transferActive = false;
     this.transferTimer = 0;
@@ -232,6 +230,16 @@ export class WorldManager {
     }
   }
 
+  // Світ закінчується на межі Кільця 1 — далі контенту немає
+  clampToWorldEdge(entity) {
+    const edge = CONFIG.WORLD.ring1Radius - (entity.radius || 0);
+    const dist = Math.hypot(entity.x, entity.y);
+    if (dist > edge) {
+      entity.x *= edge / dist;
+      entity.y *= edge / dist;
+    }
+  }
+
   spawnCore(x, y) { this.coreDrop = new CorePickup(x, y); }
 
   startRemoteTransfer() {
@@ -270,6 +278,7 @@ export class WorldManager {
 
   update(dt, player, enemyManager) {
     this.resolveCircleObstacles(player);
+    this.clampToWorldEdge(player);
     this.sanctuary.update(dt, player, enemyManager);
     for (let i = 0; i < this.outposts.length; i++) this.outposts[i].update(dt, player);
 

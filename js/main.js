@@ -75,13 +75,15 @@ state.worldManager = new WorldManager();
 setRunRestartHandler(() => {
   CONFIG.PLAYER.pickupRadius = 110;
   state.weaponManager.reset();
-  if (state.decalManager) state.decalManager.clear();
-  if (state.gibManager) state.gibManager.clear();
-  if (pixi.ready) {
-    for (const [k, tex] of pixi.canvasTextures.entries()) {
-      if (k.startsWith('decal_')) { tex.destroy(true); pixi.canvasTextures.delete(k); }
-    }
-  }
+  state.decalManager.clear();
+  state.gibManager.clear();
+
+  // Смерть під час драфту/Воркшопу не має переносити меню й уповільнення в новий забіг
+  state.isDrafting = false;
+  state.draftCards = [];
+  state.isWorkshopOpen = false;
+  state.isPaused = false;
+  state.timeScale = 1.0;
 
   state.enemyManager = new EnemyManager();
   state.pickupManager = new PickupManager();
@@ -105,8 +107,7 @@ const WORKSHOP_PERKS = [
   { key: 'engineSpeed', title: 'MOTOR TUNING', costBase: 4, costScale: 3, desc: '+8 Base Movement Speed permanently', buy: () => state.player.applyMetaUpgrades(false) },
   { key: 'shieldCapacitor', title: 'SHIELD CAPACITOR', costBase: 5, costScale: 4, desc: '-2.0s Shield Recharge Time permanently', buy: () => state.player.applyMetaUpgrades(false) },
   { key: 'naniteScavenge', title: 'NANITE HARVESTER', costBase: 6, costScale: 5, desc: '+1 Extra Tech Scrap from Nests', buy: () => {} },
-  { key: 'cargoSecurity', title: 'HOLD SECURITY', maxRank: 2, costBase: 5, costScale: 5, desc: 'Reduce scrap lost on death (50% → 40% → 25%)', buy: () => {} },
-  { key: 'terrainTracks', title: 'ALL-TERRAIN TRACKS', maxRank: CONFIG.HAZARDS.trackPerkMaxRank, costBase: 4, costScale: 5, desc: '-35% Slime/Web Slow Penalty per rank (Ring 2+)', buy: () => state.player.applyMetaUpgrades(false) }
+  { key: 'cargoSecurity', title: 'HOLD SECURITY', maxRank: 2, costBase: 5, costScale: 5, desc: 'Reduce scrap lost on death (50% → 40% → 25%)', buy: () => {} }
 ];
 
 function triggerLevelUp() {
@@ -148,7 +149,7 @@ window.addEventListener('keydown', (e) => {
   }
   if (e.code === 'KeyG') state.player.godMode = !state.player.godMode;
   const domeBroken = state.worldManager && state.worldManager.sanctuary && state.worldManager.sanctuary.domeBroken;
-  if (e.code === 'KeyB' && !state.isPaused && !domeBroken && Math.hypot(state.player.x, state.player.y) < CONFIG.HUB.radius) {
+  if (e.code === 'KeyB' && !state.isPaused && !state.isDrafting && !domeBroken && Math.hypot(state.player.x, state.player.y) < CONFIG.HUB.radius) {
     state.isWorkshopOpen = !state.isWorkshopOpen;
     state.timeScale = state.isWorkshopOpen ? 0.0 : 1.0;
   }
@@ -217,8 +218,16 @@ document.getElementById('btnCopyJSON').addEventListener('click', () => navigator
 document.getElementById('btnResetTelemetry').addEventListener('click', () => Telemetry.resetRun());
 
 function renderWorldLabelsOverlay() {
-  if (state.worldManager && state.worldManager.hazards) {
-    state.worldManager.hazards.renderWorldOverlay(ctx, state.enemyManager, camera, canvas.width, canvas.height);
+  if (!pixi.ready) {
+    // Межа світу (у Pixi її малює pixiWorld.ringGraphic)
+    ctx.save();
+    ctx.strokeStyle = 'rgba(237, 137, 54, 0.55)';
+    ctx.lineWidth = 4;
+    ctx.setLineDash([18, 12]);
+    ctx.beginPath();
+    ctx.arc(0, 0, CONFIG.WORLD.ring1Radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
   const sanc = state.worldManager && state.worldManager.sanctuary;
   if (pixi.ready && sanc) sanc.renderOverlay(ctx);
@@ -300,7 +309,6 @@ function renderFrame() {
   state.worldManager.renderCompass(ctx, state.player, canvas.width, canvas.height);
   renderXPBar(ctx, canvas, state);
   renderSanctuaryHUD(ctx, canvas, state);
-  if (state.worldManager.hazards) state.worldManager.hazards.renderHazardHUD(ctx, canvas, state.player);
   if (state.isDrafting) renderDraftOverlay(ctx, canvas, state);
   if (state.isWorkshopOpen) renderWorkshopOverlay(ctx, canvas, WORKSHOP_PERKS);
   renderOutpostHUD(ctx, canvas, state.worldManager, state.player);
