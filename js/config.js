@@ -50,11 +50,11 @@ export const CONFIG = {
 
   CAMERA: {
     lerpSpeed: 0.1,
-    maxOffsetX: 28,
-    maxOffsetY: 28,
-    maxAngle: 0.048,
-    traumaDecay: 1.5,
-    traumaExponent: 1.35,
+    maxOffsetX: 11,
+    maxOffsetY: 11,
+    maxAngle: 0.014,
+    traumaDecay: 2.1,
+    traumaExponent: 1.5,
   },
 
   JUICE: {

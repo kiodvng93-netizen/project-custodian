@@ -15,13 +15,22 @@ export const SPRITE_MANIFEST = {
     chromaKeyWhite: false
   },
 
-  // Розкоментуй рядок, коли додаси відповідний .png у папку assets/:
-  // enemy_sprout:  { paths: ['assets/sprites/enemies/sprout.png'],  chromaKeyWhite: false },
-  // enemy_stalker: { paths: ['assets/sprites/enemies/stalker.png'], chromaKeyWhite: false },
-  // enemy_dasher:  { paths: ['assets/sprites/enemies/dasher.png'],  chromaKeyWhite: false },
-  // enemy_warden:  { paths: ['assets/sprites/enemies/warden.png'],  chromaKeyWhite: false },
-  // pickup_bio:    { paths: ['assets/sprites/pickups/bio.png'],     chromaKeyWhite: false },
-  // pickup_tech:   { paths: ['assets/sprites/pickups/tech.png'],    chromaKeyWhite: false },
+  // Вороги та бос
+  enemy_sprout:      { paths: ['assets/sprites/enemy_sprout.png'],      chromaKeyWhite: true, meta: { cols: 6, rows: 4 } },
+  enemy_dasher:      { paths: ['assets/sprites/enemy_dasher.png'],      chromaKeyWhite: true, meta: { cols: 6, rows: 4 } },
+  enemy_stalker:     { paths: ['assets/sprites/enemy_stalker.png'],     chromaKeyWhite: true, meta: { cols: 6, rows: 4 } },
+  enemy_warden:      { paths: ['assets/sprites/boss_warden.png'],       chromaKeyWhite: true, meta: { cols: 6, rows: 4 } },
+
+  // Світ та інтерактивні об'єкти
+  chest:             { paths: ['assets/sprites/chest.png'],             chromaKeyWhite: true, meta: { cols: 4, rows: 3 } },
+  monument:          { paths: ['assets/sprites/monument.png'],          chromaKeyWhite: true, meta: { cols: 4, rows: 3 } },
+  nest:              { paths: ['assets/sprites/nest.png'],              chromaKeyWhite: true, meta: { cols: 4, rows: 3 } },
+  core:              { paths: ['assets/sprites/core.png'],              chromaKeyWhite: true, meta: { cols: 4, rows: 1 } },
+
+  // Зброя та снаряди
+  saws:              { paths: ['assets/sprites/saws.png'],              chromaKeyWhite: true, meta: { cols: 8, rows: 2 } },
+  mortar_shell:      { paths: ['assets/sprites/mortar_shell.png'],      chromaKeyWhite: true, meta: { cols: 4, rows: 1 } },
+  incinerator_shell: { paths: ['assets/sprites/incinerator_shell.png'], chromaKeyWhite: true, meta: { cols: 4, rows: 1 } },
 };
 
 export class SpriteManager {
@@ -99,8 +108,22 @@ export class SpriteManager {
       const imgData = ctx.getImageData(0, 0, img.width, img.height);
       const data = imgData.data;
       for (let i = 0; i < data.length; i += 4) {
-        if (data[i] > 240 && data[i + 1] > 240 && data[i + 2] > 240) {
-          data[i + 3] = 0;
+        const a = data[i + 3];
+        if (a === 0) continue;
+
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const min = Math.min(r, g, b);
+        const max = Math.max(r, g, b);
+
+        // Вирізаємо нейтральний білий/світло-сірий фон із м'яким згладжуванням країв
+        if (max - min < 26) {
+          if (min >= 235) {
+            data[i + 3] = 0;
+          } else if (min > 205) {
+            data[i + 3] = Math.min(a, Math.round(((235 - min) / 30) * 255));
+          }
         }
       }
       ctx.putImageData(imgData, 0, 0);

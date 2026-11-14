@@ -1,0 +1,255 @@
+// js/render/pixiEntities.js — Рендер гравця, ворогів, луту та уламків із тінями, спрайтами та Y-sorting
+
+import { SpritePool } from './pixiCore.js';
+import { PixiSpriteAtlas } from './pixiSpriteAtlas.js';
+
+export class PixiEntitiesRenderer {
+  constructor(pixi, atlas = null) {
+    this.pixi = pixi;
+    this.atlas = atlas || new PixiSpriteAtlas(pixi);
+    this.shadowPool = new SpritePool(pixi.shadowLayer);
+    this.entityPool = new SpritePool(pixi.entityLayer);
+  }
+
+  sync(state, camera, viewW, viewH, nowSec) {
+    this.shadowPool.beginFrame();
+    this.entityPool.beginFrame();
+
+    const vl = camera.x - viewW * 0.5 - 120;
+    const vr = camera.x + viewW * 0.5 + 120;
+    const vt = camera.y - viewH * 0.5 - 120;
+    const vb = camera.y + viewH * 0.5 + 120;
+
+    if (state.pickupManager) this.syncPickups(state.pickupManager.pickups, vl, vr, vt, vb, nowSec);
+    if (state.gibManager) this.syncGibs(state.gibManager.gibs, vl, vr, vt, vb);
+    if (state.enemyManager) this.syncEnemies(state.enemyManager.enemies, state.spriteManager, vl, vr, vt, vb, nowSec);
+    if (state.player) this.syncPlayer(state.player, state.spriteManager, nowSec);
+
+    this.shadowPool.endFrame();
+    this.entityPool.endFrame();
+  }
+
+  syncPlayer(player, spriteManager, nowSec) {
+    const shadowTex = this.pixi.getTexture('shadow');
+    const ringTex = this.pixi.getTexture('ring');
+    const whiteTex = this.pixi.getTexture('white');
+    const gScale = player.growthScale || 1;
+
+    const sh = this.shadowPool.acquire(shadowTex);
+    sh.position.set(player.x, player.y + player.radius * 0.72);
+    sh.width = player.radius * 2.0;
+    sh.height = player.radius * 0.8;
+    sh.alpha = 0.85;
+
+    for (let i = 0; i < player.afterimages.length; i++) {
+      const g = player.afterimages[i];
+      const ghost = this.entityPool.acquire(ringTex);
+      ghost.position.set(g.x, g.y);
+      ghost.width = g.radius * 2; ghost.height = g.radius * 2;
+      ghost.tint = 0x63b3ed;
+      ghost.alpha = g.alpha * 0.7;
+      ghost.zIndex = g.y - 0.1;
+    }
+
+    const blinkAlpha = (player.invulnerableTimer > 0 && Math.floor(nowSec * 16.6) % 2 === 0) ? 0.45 : 1.0;
+
+    if (player.shieldCharges > 0) {
+      const sr = this.entityPool.acquire(ringTex);
+      sr.position.set(player.x, player.y);
+      const d = (player.radius + 7) * 2;
+      sr.width = d; sr.height = d;
+      sr.tint = 0x4299e1;
+      sr.alpha = blinkAlpha * 0.85;
+      sr.zIndex = player.y - 0.02;
+    }
+
+    if (player.carryingCore) {
+      const cr = this.entityPool.acquire(ringTex);
+      cr.position.set(player.x, player.y);
+      const d = (player.radius + 12) * 2;
+      cr.width = d; cr.height = d;
+      cr.tint = 0xecc94b;
+      cr.zIndex = player.y - 0.03;
+    }
+
+    if (player.godMode) {
+      const gr = this.entityPool.acquire(ringTex);
+      gr.position.set(player.x, player.y);
+      const d = (player.radius + 15) * 2;
+      gr.width = d; gr.height = d;
+      gr.tint = 0xffd700;
+      gr.zIndex = player.y - 0.04;
+    }
+
+    const frame = this.atlas.getRobotFrame(spriteManager, player, nowSec);
+    if (frame) {
+      const s = this.entityPool.acquire(frame.tex);
+      const sz = 54 * gScale;
+      s.position.set(player.x, player.y - 6 * gScale + frame.bob);
+      s.width = sz; s.height = sz;
+      s.alpha = blinkAlpha;
+      s.zIndex = player.y;
+    } else {
+      const s = this.entityPool.acquire(this.pixi.getTexture('hex'));
+      s.position.set(player.x, player.y);
+      s.width = player.radius * 2; s.height = player.radius * 2;
+      s.rotation = player.facingAngle;
+      s.tint = player.godMode ? 0xd69e2e : 0x2b6cb0;
+      s.alpha = blinkAlpha;
+      s.zIndex = player.y;
+    }
+
+    if (player.isCruising) {
+      const flame = this.entityPool.acquire(this.pixi.getTexture('circle'));
+      const dist = player.radius * 0.9;
+      flame.position.set(player.x - Math.cos(player.facingAngle) * dist, player.y - Math.sin(player.facingAngle) * dist);
+      const fs = 10 + Math.random() * 8;
+      flame.width = fs; flame.height = fs;
+      flame.tint = Math.random() > 0.5 ? 0xf6ad55 : 0xed8936;
+      flame.zIndex = player.y - 0.01;
+    }
+
+    const w = 38 * gScale;
+    const by = player.y - player.radius - 12;
+    const hpBg = this.entityPool.acquire(whiteTex);
+    hpBg.position.set(player.x, by);
+    hpBg.width = w + 2; hpBg.height = 6;
+    hpBg.tint = 0x000000; hpBg.alpha = 0.65;
+    hpBg.zIndex = player.y + 0.05;
+
+    const ratio = Math.max(0, player.health / player.maxHealth);
+    const hpFill = this.entityPool.acquire(whiteTex);
+    hpFill.position.set(player.x - (w * 0.5) * (1 - ratio), by);
+    hpFill.width = Math.max(0.1, w * ratio); hpFill.height = 4;
+    hpFill.tint = ratio > 0.5 ? 0x48bb78 : 0xf56565;
+    hpFill.zIndex = player.y + 0.06;
+
+    for (let i = 0; i < player.maxShieldCharges; i++) {
+      const pip = this.entityPool.acquire(whiteTex);
+      pip.position.set(player.x - w * 0.5 + 3 + i * 9, by - 7);
+      pip.width = 6; pip.height = 6;
+      pip.tint = i < player.shieldCharges ? 0x4299e1 : 0x4a5568;
+      pip.zIndex = player.y + 0.06;
+    }
+  }
+
+  syncEnemies(enemies, spriteManager, vl, vr, vt, vb, nowSec) {
+    const shadowTex = this.pixi.getTexture('shadow');
+    const whiteTex = this.pixi.getTexture('white');
+
+    for (let i = 0; i < enemies.length; i++) {
+      const e = enemies[i];
+      if (!e.alive || e.x < vl || e.x > vr || e.y < vt || e.y > vb) continue;
+
+      const spriteKey = `enemy_${e.typeKey}`;
+      const hasSprite = spriteManager && spriteManager.has(spriteKey);
+
+      const sh = this.shadowPool.acquire(shadowTex);
+      sh.position.set(e.x, e.y + e.radius * 0.62);
+      sh.width = e.radius * 1.45;
+      sh.height = e.radius * 0.55;
+      sh.alpha = 0.72;
+
+      if (hasSprite) {
+        let row = 0;
+        if (e.typeKey === 'warden' && (e.isTelegraphing || e.isCharging)) row = 2;
+        const col = Math.floor(nowSec * 8 + i) % 6;
+        const tex = this.atlas.getFrame(spriteManager, spriteKey, row, col);
+
+        const s = this.entityPool.acquire(tex);
+        const scaleMult = e.typeKey === 'warden' ? 3.2 : e.typeKey === 'stalker' ? 2.9 : 3.0;
+        const boost = (e.typeKey === 'warden' && e.isCharging) ? 1.15 : 1.0;
+        const drawSz = e.radius * scaleMult * boost;
+
+        s.position.set(e.x, e.y - e.radius * 0.2);
+        s.width = drawSz;
+        s.height = drawSz;
+        s.zIndex = e.y;
+
+        if (e.hitFlashTimer > 0) s.tint = 0xff7777;
+        else if (e.typeKey === 'warden' && !e.isAwakened) s.tint = 0x777799;
+        else if (e.typeKey === 'warden' && e.isTelegraphing) s.tint = Math.floor(nowSec * 12) % 2 === 0 ? 0xffaaaa : 0xffffff;
+      } else {
+        const tex = e.typeKey === 'dasher'
+          ? this.pixi.getTexture('triangle')
+          : e.typeKey === 'warden' ? this.pixi.getTexture('octagon') : this.pixi.getTexture('circle_outline');
+        const s = this.entityPool.acquire(tex);
+        const boost = (e.typeKey === 'warden' && e.isCharging) ? 1.18 : 1.0;
+        s.position.set(e.x, e.y);
+        s.width = e.radius * 2 * boost;
+        s.height = e.radius * 2 * boost;
+        s.tint = e.hitFlashTimer > 0 ? 0xffffff : e.color;
+        s.zIndex = e.y;
+      }
+
+      if (e.health < e.maxHealth) {
+        const barW = e.radius * 2;
+        const by = e.y - e.radius * (hasSprite ? 1.35 : 1.0) - 6;
+        const bg = this.entityPool.acquire(whiteTex);
+        bg.position.set(e.x, by);
+        bg.width = barW; bg.height = 3;
+        bg.tint = 0x000000; bg.alpha = 0.6;
+        bg.zIndex = e.y + 0.02;
+
+        const r = Math.max(0, e.health / e.maxHealth);
+        const fill = this.entityPool.acquire(whiteTex);
+        fill.position.set(e.x - (barW * 0.5) * (1 - r), by);
+        fill.width = Math.max(0.1, barW * r); fill.height = 3;
+        fill.tint = 0xfc8181;
+        fill.zIndex = e.y + 0.03;
+      }
+    }
+  }
+
+  syncPickups(pickups, vl, vr, vt, vb, nowSec) {
+    const shadowTex = this.pixi.getTexture('shadow');
+    const diamondTex = this.pixi.getTexture('diamond');
+    const whiteTex = this.pixi.getTexture('white');
+    const pulse = Math.sin(nowSec * 5) * 1.5;
+
+    for (let i = 0; i < pickups.length; i++) {
+      const p = pickups[i];
+      if (!p.alive || p.x < vl || p.x > vr || p.y < vt || p.y > vb) continue;
+
+      const sh = this.shadowPool.acquire(shadowTex);
+      sh.position.set(p.x, p.y + 5);
+      sh.width = 10; sh.height = 4;
+      sh.alpha = 0.6;
+
+      const s = this.entityPool.acquire(p.type === 'bio' ? diamondTex : whiteTex);
+      s.position.set(p.x, p.y);
+      const sz = p.type === 'bio' ? (p.radius + pulse) * 2 : p.radius;
+      s.width = sz; s.height = sz;
+      s.tint = p.type === 'bio' ? 0x48bb78 : 0xecc94b;
+      s.zIndex = p.y;
+    }
+  }
+
+  syncGibs(gibs, vl, vr, vt, vb) {
+    const shadowTex = this.pixi.getTexture('shadow');
+    const circleTex = this.pixi.getTexture('circle_outline');
+    const whiteTex = this.pixi.getTexture('white');
+    const triTex = this.pixi.getTexture('triangle');
+
+    for (let i = 0; i < gibs.length; i++) {
+      const g = gibs[i];
+      if (!g.alive || g.x < vl || g.x > vr || g.y < vt || g.y > vb) continue;
+
+      const shadowScale = Math.max(0.2, 1 - g.z / 90);
+      const sh = this.shadowPool.acquire(shadowTex);
+      sh.position.set(g.x, g.y);
+      sh.width = g.size * 1.5 * shadowScale;
+      sh.height = g.size * 0.7 * shadowScale;
+      sh.alpha = shadowScale * 0.7;
+
+      const tex = g.shape === 'shard' ? triTex : g.shape === 'plate' ? whiteTex : circleTex;
+      const s = this.entityPool.acquire(tex);
+      s.position.set(g.x, g.y - g.z);
+      s.width = g.size * 1.6;
+      s.height = g.shape === 'plate' ? g.size : g.size * 1.6;
+      s.rotation = g.angle;
+      s.tint = g.color;
+      s.zIndex = g.y;
+    }
+  }
+}
