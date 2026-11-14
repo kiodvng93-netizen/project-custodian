@@ -24,7 +24,33 @@ export class EnemyManager {
     this._rearBuffer = [];
     this._removeIndices = new Set();
     this.despawnRadius = CONFIG.ENEMIES.despawnRadius;
+    this.cargoAlert = 0; // 0..1, з незданого скрапу (оновлюється щокадру, читає HUD)
+    this.activeCap = CONFIG.ENEMIES.OPENING.startActiveCap; // ліміт живих для спавну хвиль/засідок
+    this.openingPackScale = CONFIG.ENEMIES.OPENING.startPackScale;
     this.spawnWarden();
+  }
+
+  // Розгін на старті: частота спавну і ліміт живих ворогів ростуть від стартових до повних
+  // за OPENING.duration. Повертає множник частоти спавну.
+  updateOpeningRamp() {
+    const o = CONFIG.ENEMIES.OPENING;
+    const t = Math.min(1, this.elapsedRunTime / o.duration);
+    this.activeCap = Math.round(o.startActiveCap + (CONFIG.ENEMIES.maxActive - o.startActiveCap) * t * t);
+    this.openingPackScale = o.startPackScale + (1 - o.startPackScale) * t;
+    return o.startSpawnRate + (1 - o.startSpawnRate) * t;
+  }
+
+  // Тривога Вулика: частка від CARGO_PRESSURE.fullAlertScrap незданого скрапу
+  updateCargoAlert() {
+    const cargo = Telemetry.metrics.resourcesCollected.techScrap;
+    this.cargoAlert = Math.min(1, cargo / CONFIG.CARGO_PRESSURE.fullAlertScrap);
+  }
+
+  // Новий ворог хвилі/засідки; з тривогою частина стає елітою
+  createWaveEnemy(x, y, type) {
+    const enemy = new Enemy(x, y, type, this.waveNumber);
+    if (Math.random() < this.cargoAlert * CONFIG.CARGO_PRESSURE.maxEliteChance) enemy.makeElite();
+    return enemy;
   }
 
   triggerStressTestSwarm(player) {
@@ -95,29 +121,35 @@ export class EnemyManager {
 
     const cfg = CONFIG.ENEMIES;
     const waveCfg = cfg.WAVE;
+    const cargoCfg = CONFIG.CARGO_PRESSURE;
+    this.updateCargoAlert();
     const isExtractionAlert = Boolean(player.carryingCore || (state.worldManager && state.worldManager.evac.isActive));
     const progress = Math.min(1.0, this.elapsedRunTime / cfg.rampTimeSeconds);
     const nestRatio = Math.min(1.0, activeNestsCount / Math.max(1, CONFIG.WORLD.nestCountRing1));
     const nestMult = 0.75 + nestRatio * 0.75;
+    const cargoRateMult = 1 + this.cargoAlert * cargoCfg.maxSpawnRateBonus;
+    const openingRateMult = this.updateOpeningRamp();
 
     if (this.wavePhase !== 'breather') {
       const pressure = Math.min(1.0, this.waveIntensity * (0.7 + 0.3 * progress));
       const baseInterval = waveCfg.maxInterval - pressure * (waveCfg.maxInterval - waveCfg.minInterval);
-      const currentInterval = (baseInterval / nestMult) * (isExtractionAlert ? 0.55 : 1.0);
+      const currentInterval = (baseInterval / nestMult / cargoRateMult / openingRateMult) * (isExtractionAlert ? 0.55 : 1.0);
 
       this.spawnTimer += dt;
       if (this.spawnTimer >= currentInterval) {
         this.spawnTimer = 0;
-        if (this.enemies.length < cfg.maxActive) {
-          const packCount = 3 + Math.floor(pressure * 4 + Math.min(4, (this.waveNumber - 1) * 0.7));
+        if (this.enemies.length < this.activeCap) {
+          const fullPack = 3 + Math.floor(pressure * 4 + Math.min(4, (this.waveNumber - 1) * 0.7) + this.cargoAlert * cargoCfg.maxExtraPack);
+          const packCount = Math.max(1, Math.round(fullPack * this.openingPackScale));
           this.spawnDirectionalWave(player, canvasWidth, canvasHeight, packCount);
         }
       }
-    } else if (isExtractionAlert) {
+    } else if (isExtractionAlert || this.cargoAlert >= cargoCfg.breatherTrickleAlert) {
+      // Перепочинку немає, коли несеш Ядро, евакуюєшся або трюм переповнений
       this.spawnTimer += dt;
       if (this.spawnTimer >= waveCfg.breatherAlertInterval) {
         this.spawnTimer = 0;
-        if (this.enemies.length < cfg.maxActive) this.spawnDirectionalWave(player, canvasWidth, canvasHeight, 3);
+        if (this.enemies.length < this.activeCap) this.spawnDirectionalWave(player, canvasWidth, canvasHeight, 3);
       }
     } else {
       this.spawnTimer = 0;
@@ -188,7 +220,7 @@ export class EnemyManager {
     const spawnDist = this.getSpawnDistance(canvasWidth, canvasHeight, 90);
 
     for (let i = 0; i < count; i++) {
-      if (this.enemies.length >= cfg.maxActive) break;
+      if (this.enemies.length >= this.activeCap) break;
       let spawnAngle = Math.random() * Math.PI * 2;
       if (isMoving && headingAway) spawnAngle = Math.random() < 0.7 ? moveAngle + (Math.random() - 0.5) * 1.8 : spawnAngle;
       else if (isMoving && !headingAway) spawnAngle = Math.random() < 0.75 ? (moveAngle + Math.PI) + (Math.random() - 0.5) * 1.8 : spawnAngle;
@@ -199,22 +231,29 @@ export class EnemyManager {
 
       const roll = Math.random();
       const type = roll < 0.22 ? 'dasher' : roll < 0.44 ? 'stalker' : 'sprout';
-      this.enemies.push(new Enemy(x, y, type, this.waveNumber));
+      this.enemies.push(this.createWaveEnemy(x, y, type));
     }
   }
 
   triggerAmbushSwarm(player, canvasWidth, canvasHeight) {
     Telemetry.recordEvent('SURGE', `Wave ${this.waveNumber} Ambush surrounding!`);
-    const count = Math.min(32, 14 + (this.waveNumber - 1) * 3);
+    const o = CONFIG.ENEMIES.OPENING;
+    const openingT = Math.min(1, this.elapsedRunTime / o.duration);
+    const fullCount = Math.min(32, 14 + (this.waveNumber - 1) * 3);
+    const count = Math.max(4, Math.round(fullCount * (o.ambushStartScale + (1 - o.ambushStartScale) * openingT)));
     const spawnDist = this.getSpawnDistance(canvasWidth, canvasHeight, 80);
 
+    // Кільце з проломом: засідка — тест на реакцію, а не гарантована смерть
+    const gap = (CONFIG.ENEMIES.WAVE.ambushGapDegrees * Math.PI) / 180;
+    const arc = Math.PI * 2 - gap;
+    const start = Math.random() * Math.PI * 2;
     for (let i = 0; i < count; i++) {
-      if (this.enemies.length >= CONFIG.ENEMIES.maxActive) break;
-      const angle = (i * Math.PI * 2) / count;
+      if (this.enemies.length >= this.activeCap) break;
+      const angle = start + gap / 2 + (arc * i) / Math.max(1, count - 1);
       const x = player.x + Math.cos(angle) * spawnDist;
       const y = player.y + Math.sin(angle) * spawnDist;
       if (this.isInsideTerraformedZone(x, y)) continue;
-      this.enemies.push(new Enemy(x, y, i % 4 === 0 ? 'dasher' : 'sprout', this.waveNumber));
+      this.enemies.push(this.createWaveEnemy(x, y, i % 4 === 0 ? 'dasher' : 'sprout'));
     }
   }
 

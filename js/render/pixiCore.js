@@ -50,6 +50,7 @@ export class PixiCore {
     this.worldRoot = null;
     this.bgLayer = null;
     this.decalLayer = null;
+    this.corpseLayer = null;
     this.shadowLayer = null;
     this.entityLayer = null;
     this.fxLayer = null;
@@ -79,6 +80,7 @@ export class PixiCore {
     this.worldRoot = new Container();
     this.bgLayer = new Container();
     this.decalLayer = new Container();
+    this.corpseLayer = new Container(); // тіла ворогів: над кров'ю, під тінями й живими
     this.shadowLayer = new Container();
     this.entityLayer = new Container();
     this.entityLayer.sortableChildren = true;
@@ -87,6 +89,7 @@ export class PixiCore {
     this.worldRoot.addChild(
       this.bgLayer,
       this.decalLayer,
+      this.corpseLayer,
       this.shadowLayer,
       this.entityLayer,
       this.fxLayer

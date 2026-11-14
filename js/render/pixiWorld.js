@@ -106,8 +106,12 @@ export class PixiWorldRenderer {
           if (!chunk) continue;
           chunk.touch();
 
-          const tex = this.pixi.getCanvasTexture(`decal_${key}`, chunk.canvas, chunk.needsTextureUpdate);
-          chunk.needsTextureUpdate = false;
+          // Перезаливка 512×512 у GPU — не частіше ніж раз на textureUploadInterval на чанк
+          // (у бійці десятки смертей за секунду фарбують ті самі чанки)
+          const nowMs = performance.now();
+          const upload = chunk.needsTextureUpdate && nowMs - (chunk.lastUploadAt || 0) >= decalManager.uploadIntervalMs;
+          const tex = this.pixi.getCanvasTexture(`decal_${key}`, chunk.canvas, upload);
+          if (upload) { chunk.needsTextureUpdate = false; chunk.lastUploadAt = nowMs; }
           if (!tex) continue;
 
           const s = this.decalPool.acquire(tex);

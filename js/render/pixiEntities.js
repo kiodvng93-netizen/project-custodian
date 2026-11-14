@@ -9,6 +9,35 @@ export class PixiEntitiesRenderer {
     this.atlas = atlas || new PixiSpriteAtlas(pixi);
     this.shadowPool = new SpritePool(pixi.shadowLayer);
     this.entityPool = new SpritePool(pixi.entityLayer);
+    this.corpsePool = new SpritePool(pixi.corpseLayer);
+  }
+
+  // Тіла: кадр «купа решток» зі спрайт-листа (ще фізичні; «вросші» вже намальовані в декалях)
+  syncCorpses(corpses, spriteManager, vl, vr, vt, vb) {
+    this.corpsePool.beginFrame();
+    for (let i = 0; i < corpses.length; i++) {
+      const b = corpses[i];
+      if (b.x < vl || b.x > vr || b.y < vt || b.y > vb) continue;
+      const key = `enemy_${b.typeKey}`;
+      const meta = spriteManager && spriteManager.getMeta(key);
+      const tex = this.atlas.getCorpseFrame(spriteManager, key, b.variant);
+      if (tex) {
+        const rect = meta.corpseFrames[b.variant % meta.corpseFrames.length];
+        const [w, h] = b.displaySize(rect);
+        const s = this.corpsePool.acquire(tex);
+        s.position.set(b.x, b.y);
+        s.width = w; s.height = h;
+        s.scale.x *= b.flip;
+        s.rotation = b.rot;
+      } else {
+        const s = this.corpsePool.acquire(this.pixi.getTexture('circle'));
+        s.position.set(b.x, b.y);
+        s.width = b.radius * 2; s.height = b.radius * 1.4;
+        s.rotation = b.rot;
+        s.tint = 0x3a2a2a;
+      }
+    }
+    this.corpsePool.endFrame();
   }
 
   sync(state, camera, viewW, viewH, nowSec) {
@@ -20,6 +49,7 @@ export class PixiEntitiesRenderer {
     const vt = camera.y - viewH * 0.5 - 120;
     const vb = camera.y + viewH * 0.5 + 120;
 
+    if (state.corpseManager) this.syncCorpses(state.corpseManager.corpses, state.spriteManager, vl, vr, vt, vb);
     if (state.pickupManager) this.syncPickups(state.pickupManager.pickups, vl, vr, vt, vb, nowSec);
     if (state.gibManager) this.syncGibs(state.gibManager.gibs, vl, vr, vt, vb);
     if (state.enemyManager) this.syncEnemies(state.enemyManager.enemies, state.spriteManager, vl, vr, vt, vb, nowSec);
@@ -150,6 +180,16 @@ export class PixiEntitiesRenderer {
       sh.height = e.radius * 0.55;
       sh.alpha = 0.72;
 
+      // Еліта (тривога трюму): золоте кільце під ногами
+      if (e.isElite) {
+        const ring = this.shadowPool.acquire(this.pixi.getTexture('ring'));
+        ring.position.set(e.x, e.y + e.radius * 0.5);
+        ring.width = e.radius * 2.4;
+        ring.height = e.radius * 1.0;
+        ring.tint = 0xf6e05e;
+        ring.alpha = 0.8;
+      }
+
       if (hasSprite) {
         let row = 0;
         if (e.typeKey === 'warden' && (e.isTelegraphing || e.isCharging)) row = 2;
@@ -167,6 +207,7 @@ export class PixiEntitiesRenderer {
         s.zIndex = e.y;
 
         if (e.hitFlashTimer > 0) s.tint = 0xff7777;
+        else if (e.isElite) s.tint = 0xffd27a;
         else if (e.typeKey === 'warden' && !e.isAwakened) s.tint = 0x777799;
         else if (e.typeKey === 'warden' && e.isTelegraphing) s.tint = Math.floor(nowSec * 12) % 2 === 0 ? 0xffaaaa : 0xffffff;
       } else {
@@ -178,7 +219,7 @@ export class PixiEntitiesRenderer {
         s.position.set(e.x, e.y);
         s.width = e.radius * 2 * boost;
         s.height = e.radius * 2 * boost;
-        s.tint = e.hitFlashTimer > 0 ? 0xffffff : e.color;
+        s.tint = e.hitFlashTimer > 0 ? 0xffffff : e.isElite ? 0xecc94b : e.color;
         s.zIndex = e.y;
       }
 
@@ -227,7 +268,7 @@ export class PixiEntitiesRenderer {
 
   syncGibs(gibs, vl, vr, vt, vb) {
     const shadowTex = this.pixi.getTexture('shadow');
-    const circleTex = this.pixi.getTexture('circle_outline');
+    const circleTex = this.pixi.getTexture('circle'); // без білого контуру — інакше «конфетті»
     const whiteTex = this.pixi.getTexture('white');
     const triTex = this.pixi.getTexture('triangle');
 

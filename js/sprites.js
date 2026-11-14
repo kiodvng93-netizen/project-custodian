@@ -1,5 +1,9 @@
 // js/sprites.js — Реєстр спрайтів і текстур (підтримка часткових асетів + підготовка під PixiJS)
 
+// Кадри тіла (купа решток) у листах ворогів 1312×1199: 3-й ряд, останні дві колонки.
+// Явні прямокутники [x, y, w, h], бо AI-листи не лягають на рівну сітку 6×4.
+const CORPSE_FRAMES = [[845, 515, 245, 335], [1080, 515, 232, 335]];
+
 export const SPRITE_MANIFEST = {
   robot: {
     paths: ['assets/sprites/robot.png'],
@@ -16,10 +20,10 @@ export const SPRITE_MANIFEST = {
   },
 
   // Вороги та бос
-  enemy_sprout:      { paths: ['assets/sprites/enemy_sprout.png'],      chromaKeyWhite: true, meta: { cols: 6, rows: 4 } },
-  enemy_dasher:      { paths: ['assets/sprites/enemy_dasher.png'],      chromaKeyWhite: true, meta: { cols: 6, rows: 4 } },
-  enemy_stalker:     { paths: ['assets/sprites/enemy_stalker.png'],     chromaKeyWhite: true, meta: { cols: 6, rows: 4 } },
-  enemy_warden:      { paths: ['assets/sprites/boss_warden.png'],       chromaKeyWhite: true, meta: { cols: 6, rows: 4 } },
+  enemy_sprout:      { paths: ['assets/sprites/enemy_sprout.png'],      chromaKeyWhite: true, meta: { cols: 6, rows: 4, corpseFrames: CORPSE_FRAMES } },
+  enemy_dasher:      { paths: ['assets/sprites/enemy_dasher.png'],      chromaKeyWhite: true, meta: { cols: 6, rows: 4, corpseFrames: CORPSE_FRAMES } },
+  enemy_stalker:     { paths: ['assets/sprites/enemy_stalker.png'],     chromaKeyWhite: true, meta: { cols: 6, rows: 4, corpseFrames: CORPSE_FRAMES } },
+  enemy_warden:      { paths: ['assets/sprites/boss_warden.png'],       chromaKeyWhite: true, meta: { cols: 6, rows: 4, corpseFrames: CORPSE_FRAMES } },
 
   // Світ та інтерактивні об'єкти
   chest:             { paths: ['assets/sprites/chest.png'],             chromaKeyWhite: true, meta: { cols: 4, rows: 3 } },

@@ -33,6 +33,7 @@ export const CONFIG = {
 
   DRAFT: {
     minInterval: 3.0,      // мін. секунд гри між вікнами драфту, коли рівні накопичились
+    newWeaponCardsBySlots: [0, 2, 2, 1], // скільки з 3 карток гарантовано НОВА зброя при N зброї в слотах
     bulletTimeScale: 0.08, // уповільнення часу під час вибору картки
   },
 
@@ -121,8 +122,40 @@ export const CONFIG = {
     }
   },
 
-  DECALS: { chunkSize: 512, maxChunks: 128 },
-  GIBS: { maxActive: 140, friction: 0.88, gravity: -480 },
+  DECALS: { chunkSize: 512, maxChunks: 128, textureUploadInterval: 0.05 },
+  GIBS: { maxActive: 240, friction: 0.88, gravity: -480, countMult: 1.6, smearStep: 26 },
+
+  // Кров і «поп» смерті (js/gore.js)
+  GORE: {
+    splatterScale: 1.0,      // загальний розмір плям
+    deathRadiusMult: 1.3,    // радіус калюжі смерті = радіус ворога × це
+    eliteSplatterBonus: 0.35, // + до сили плями еліти
+    overkillBonus: 0.35,     // + до сили плями за надлишковий урон (до 100% maxHP)
+    hitSpurtDamage: 14,      // накопичений урон, після якого з ворога бризкає кров
+    hitSpurtCooldown: 0.12,  // секунд між бризками одного ворога
+    deathFlash: true,        // спалах + кільце кольору крові при смерті
+  },
+
+  // Тіла ворогів (js/corpses.js): лежать назавжди. Перші interactiveTime секунд їх штовхає робот
+  // і вороги, потім тіло «вростає» в землю (малюється в декалі) і більше нічого не коштує.
+  CORPSES: {
+    maxActive: 150,        // фізичних тіл одночасно; понад це найстаріше одразу вростає
+    interactiveTime: 15,   // секунд, поки тіло можна штовхати
+    sizeMult: 1.3,         // розмір купи решток відносно розміру живого спрайта
+    knockback: 170,        // швидкість відльоту від смертельного удару
+    friction: 0.86,        // гальмування ковзання (за 1/60 с)
+    playerPush: 0.75,      // частка швидкості робота, що передається тілу
+    enemyPushInterval: 3,  // кадрів між перевірками штовхання ворогами (розносимо навантаження)
+    smearStep: 22,         // пікселів ковзання між мазками крові
+  },
+
+  // Сліди робота у свіжій крові (js/gore.js)
+  TRACKS: {
+    freshBloodSeconds: 25, // скільки калюжа «свіжа», щоб забруднити гусениці
+    maxFreshPools: 160,    // скільки останніх калюж пам'ятаємо
+    trailLength: 420,      // пікселів слідів після проїзду крізь калюжу
+    stepPx: 16,            // крок між відбитками
+  },
   SPATIAL_GRID: { cellSize: 140 },
 
   NEST: {
@@ -142,8 +175,26 @@ export const CONFIG = {
     maxBio: 7,
   },
 
+  // «Вулик чує твій трюм»: тиск ворогів росте з НЕЗДАНИМ скрапом (alert 0..1)
+  CARGO_PRESSURE: {
+    fullAlertScrap: 40,         // скрапу в трюмі для 100% тривоги
+    maxSpawnRateBonus: 0.8,     // +80% частоти спавну на 100%
+    maxExtraPack: 3,            // +ворогів у пачці на 100%
+    maxEliteChance: 0.15,       // шанс еліти для спавну хвиль/засідок на 100%
+    breatherTrickleAlert: 0.75, // з цієї тривоги вулик не дає перепочинку (Breather)
+    ELITE: { hpMult: 2.5, damageMult: 1.3, radiusMult: 1.25, xpMult: 3 },
+  },
+
   ENEMIES: {
     maxActive: 400,
+    // Розгін на старті забігу: з одним бластером орда в 400 ворогів за першу хвилину — нечесно
+    OPENING: {
+      duration: 300,        // секунд до повної сили спавну
+      startSpawnRate: 0.12, // частка частоти спавну на 0с
+      startPackScale: 0.35, // частка розміру пачки на 0с
+      startActiveCap: 20,   // ліміт живих ворогів хвиль на 0с (далі росте до maxActive)
+      ambushStartScale: 0.35, // розмір кільця засідки на 0с відносно повного
+    },
     maxRearChasers: 105,
     despawnRadius: 1800,
     hubSafeRadius: 360,
@@ -153,6 +204,7 @@ export const CONFIG = {
       surgeDuration: 22,
       ebbDuration: 8,
       ambushTriggerTime: 10,
+      ambushGapDegrees: 70, // пролом у кільці засідки для втечі
       minInterval: 0.14,
       maxInterval: 0.52,
       breatherAlertInterval: 1.1,
@@ -171,7 +223,7 @@ export const CONFIG = {
         color: '#9b2c2c', outline: '#fc8181', xpValue: 1
       },
       stalker: {
-        name: 'Thorn Stalker', hp: 165, speed: 118, damage: 28, radius: 23, maxSpeedRatio: 0.85,
+        name: 'Thorn Stalker', hp: 165, speed: 118, damage: 20, radius: 23, maxSpeedRatio: 0.85, // було 28: випад ×1.25 знімав пів HP
         color: '#551a1a', outline: '#e53e3e', xpValue: 3,
         windupTime: 0.22, attackDuration: 0.15, attackCooldown: 0.65,
         attackRange: 84, lungeSpeed: 420

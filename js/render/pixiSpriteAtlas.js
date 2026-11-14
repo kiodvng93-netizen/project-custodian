@@ -86,6 +86,20 @@ export class PixiSpriteAtlas {
     return grid;
   }
 
+  // Кадр тіла (купа решток) за явним прямокутником meta.corpseFrames[variant]
+  getCorpseFrame(spriteManager, key, variant = 0) {
+    const cacheKey = `corpse_${key}_${variant}`;
+    if (this.grids.has(cacheKey)) return this.grids.get(cacheKey);
+    const meta = spriteManager && spriteManager.getMeta(key);
+    if (!meta || !meta.corpseFrames || !spriteManager.has(key)) return null;
+    const rect = meta.corpseFrames[variant % meta.corpseFrames.length];
+    const baseTex = this.pixi.getCanvasTexture(`sheet_${key}`, spriteManager.getSource(key));
+    if (!baseTex) return null;
+    const tex = new Texture({ source: baseTex.source, frame: new Rectangle(rect[0], rect[1], rect[2], rect[3]) });
+    this.grids.set(cacheKey, tex);
+    return tex;
+  }
+
   getFrame(spriteManager, key, row = 0, col = 0) {
     const grid = this.ensureGrid(spriteManager, key);
     if (!grid || grid.length === 0) return null;

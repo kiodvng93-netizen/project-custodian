@@ -71,6 +71,7 @@ export class PixiWeaponsRenderer {
     if (state.shockwaves) {
       this.syncShockwaves(state.shockwaves);
     }
+    if (state.flashes) this.syncFlashes(state.flashes, vl, vr, vt, vb);
 
     this.groundPool.endFrame();
     this.fxPool.endFrame();
@@ -294,6 +295,31 @@ export class PixiWeaponsRenderer {
       s.tint = parseParticleTint(pt.color);
       s.alpha = Math.max(0, pt.life / pt.maxLife);
       s.blendMode = 'add';
+    }
+  }
+
+  // Спалах смерті: яскраве ядро + кольорове гало, що швидко розширюється і гасне
+  syncFlashes(flashes, vl, vr, vt, vb) {
+    const circleTex = this.pixi.getTexture('circle');
+    for (let i = 0; i < flashes.length; i++) {
+      const f = flashes[i];
+      if (f.x < vl || f.x > vr || f.y < vt || f.y > vb) continue;
+      const t = 1 - f.life / f.maxLife; // 0 → 1
+      const halo = this.fxPool.acquire(circleTex);
+      halo.position.set(f.x, f.y);
+      const d = f.radius * 1.4 * (0.6 + t * 0.8);
+      halo.width = d; halo.height = d;
+      halo.tint = f.tint;
+      halo.alpha = (1 - t) * 0.4;
+      halo.blendMode = 'add';
+
+      const core = this.fxPool.acquire(circleTex);
+      core.position.set(f.x, f.y);
+      const c = f.radius * (0.7 - t * 0.45);
+      core.width = c; core.height = c;
+      core.tint = 0xffffff;
+      core.alpha = (1 - t) * 0.65;
+      core.blendMode = 'add';
     }
   }
 

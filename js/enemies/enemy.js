@@ -1,7 +1,8 @@
 // js/enemies/enemy.js — Клас мобів, швидкі телеграфи, колізії стін, Титани та AI
 
 import { CONFIG } from '../config.js';
-import { state, triggerHitStop, spawnShockwave } from '../state.js';
+import { state, triggerHitStop, spawnShockwave, spawnFlash } from '../state.js';
+import { BLOOD, bloodFor, paintSplatter, paintSpurt } from '../gore.js';
 import { Telemetry } from '../telemetry.js';
 
 export class Enemy {
@@ -38,6 +39,7 @@ export class Enemy {
     this.plasmaBurnDmg = 0;
     this.invulnerable = false;
     this.isTitan = false;
+    this.isElite = false;
     this.facingAngle = 0;
     this.animState = typeKey === 'warden' ? 'idle' : 'chase';
     this.windupTimer = 0;
@@ -54,6 +56,59 @@ export class Enemy {
     this.chargeVy = 0;
     this.lastHitSourceX = undefined;
     this.lastHitSourceY = undefined;
+  }
+
+  // Еліта «на запах скрапу»: товща, сильніша, більша, золотий контур, більше XP
+  makeElite() {
+    const e = CONFIG.CARGO_PRESSURE.ELITE;
+    this.isElite = true;
+    this.maxHealth = Math.round(this.maxHealth * e.hpMult);
+    this.health = this.maxHealth;
+    this.damage = Math.round(this.damage * e.damageMult);
+    this.radius *= e.radiusMult;
+    this.xpValue *= e.xpMult;
+    this.outline = '#f6e05e';
+    return this;
+  }
+
+  // Напрям «від удару» (джерело → ворог); 0,0 якщо джерело невідоме
+  hitDirection() {
+    if (this.lastHitSourceX === undefined) return [0, 0];
+    const dx = this.x - this.lastHitSourceX, dy = this.y - this.lastHitSourceY;
+    const d = Math.hypot(dx, dy);
+    return d > 0.01 ? [dx / d, dy / d] : [0, 0];
+  }
+
+  // Бризки крові під час бою: накопичуємо урон, щоб і DoT (полум'я) фарбував землю
+  bleed(amount) {
+    const g = CONFIG.GORE;
+    this.bleedAcc = (this.bleedAcc || 0) + amount;
+    const now = performance.now();
+    if (this.bleedAcc < g.hitSpurtDamage || now - (this.lastSpurtAt || 0) < g.hitSpurtCooldown * 1000) return;
+    this.bleedAcc = 0;
+    this.lastSpurtAt = now;
+    const [dx, dy] = this.hitDirection();
+    paintSpurt(state.decalManager, this.x, this.y, { blood: bloodFor(this), radius: this.radius * 0.8, dirX: dx, dirY: dy });
+  }
+
+  // Пляма смерті по вектору удару; більша від надлишкового урону, для еліти й боса
+  paintDeath(finalHit) {
+    const g = CONFIG.GORE;
+    const [dx, dy] = this.hitDirection();
+    const overkill = Math.min(1, Math.max(0, -this.health) / this.maxHealth);
+    const power = 1 + overkill * g.overkillBonus + (this.isElite ? g.eliteSplatterBonus : 0) + (this.typeKey === 'warden' ? 0.8 : 0);
+    const blood = bloodFor(this);
+    paintSplatter(state.decalManager, this.x, this.y, { blood, radius: this.radius * g.deathRadiusMult, dirX: dx, dirY: dy, power });
+    if (state.corpseManager) state.corpseManager.spawn(this, dx, dy, power);
+    if (this.typeKey === 'warden' && state.decalManager) {
+      state.decalManager.addSplatter(this.x, this.y, { type: 'oil', radius: 40 });
+      state.decalManager.addScorch(this.x, this.y, 48);
+    }
+    if (g.deathFlash) {
+      const pal = BLOOD[blood];
+      spawnFlash(this.x, this.y, { radius: this.radius * (1.6 + 0.4 * power), tint: pal.tint, life: 0.16 });
+      spawnShockwave(this.x, this.y, { radius: this.radius * 0.6, maxRadius: this.radius * (2.6 + power), color: pal.hex, speed: 380, lineWidth: 3 });
+    }
   }
 
   takeDamage(amount, sourceX, sourceY, suppressLoot = false) {
@@ -75,19 +130,14 @@ export class Enemy {
     if (state.damageTexts && displayDamage > 0) {
       state.damageTexts.push({ x: this.x + (Math.random() - 0.5) * 14, y: this.y - this.radius - 6, text: displayDamage, life: 0.55 });
     }
+    if (this.health > 0) {
+      this.bleed(amount);
+      return;
+    }
     if (this.health <= 0) {
       this.alive = false;
       if (state.gibManager) state.gibManager.spawnForEnemy(this, this.lastHitSourceX, this.lastHitSourceY);
-      if (state.decalManager) {
-        if (this.typeKey === 'sprout') state.decalManager.addSplatter(this.x, this.y, { type: 'slime', radius: 15, count: 6 });
-        else if (this.typeKey === 'stalker') state.decalManager.addSplatter(this.x, this.y, { type: 'corrupt', radius: 24, count: 10 });
-        else if (this.typeKey === 'dasher') state.decalManager.addSplatter(this.x, this.y, { type: 'amber', radius: 17, dirX: Math.cos(this.facingAngle), dirY: Math.sin(this.facingAngle), count: 8 });
-        else if (this.typeKey === 'warden') {
-          state.decalManager.addSplatter(this.x, this.y, { type: 'oil', radius: 46, count: 20 });
-          state.decalManager.addSplatter(this.x, this.y, { type: 'corrupt', radius: 36, count: 16 });
-          state.decalManager.addScorch(this.x, this.y, 48);
-        }
-      }
+      this.paintDeath(amount);
       Telemetry.metrics.kills++;
       Telemetry.recordEvent('KILL', `${this.name} destroyed!`);
       if (this.typeKey === 'warden') {

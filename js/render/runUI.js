@@ -41,6 +41,42 @@ export function renderObjectiveArrow(ctx, canvas, camera, objective) {
   ctx.restore();
 }
 
+const PHASE_STYLE = {
+  surge: { label: 'SURGE', color: '#fc8181' },
+  ebb: { label: 'EBB', color: '#f6ad55' },
+  breather: { label: 'BREATHER', color: '#9ae6b4' },
+};
+
+// Тривога Вулика (незданий скрап) + номер і фаза хвилі — ескалація більше не прихована
+export function renderHiveAlertHUD(ctx, canvas, state) {
+  const em = state.enemyManager;
+  const alert = em.cargoAlert;
+  const x = 16, y = 66, barX = 106, barW = 100, barH = 8;
+  const trickle = alert >= CONFIG.CARGO_PRESSURE.breatherTrickleAlert;
+  const pulse = trickle && Math.floor(performance.now() / 250) % 2 === 0;
+
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 11px monospace';
+  ctx.fillStyle = trickle ? '#fc8181' : '#a0aec0';
+  ctx.fillText('HIVE ALERT', x, y);
+
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.fillRect(barX, y - barH, barW, barH);
+  ctx.fillStyle = alert < 0.4 ? '#48bb78' : alert < 0.75 ? '#ecc94b' : (pulse ? '#ff6b6b' : '#e53e3e');
+  ctx.fillRect(barX, y - barH, barW * alert, barH);
+  ctx.strokeStyle = '#4a5568';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(barX, y - barH, barW, barH);
+
+  const phase = PHASE_STYLE[em.wavePhase] || PHASE_STYLE.surge;
+  let phaseText = `WAVE ${em.waveNumber} · ${phase.label}`;
+  if (em.wavePhase === 'breather') phaseText += trickle ? ' (DENIED)' : ` ${Math.ceil(em.breatherTimeLeft)}s`;
+  ctx.fillStyle = em.wavePhase === 'breather' && trickle ? '#fc8181' : phase.color;
+  ctx.fillText(phaseText, barX + barW + 10, y);
+  ctx.restore();
+}
+
 // Панель біля Пурифаєра: виклик евакуації / таймер утримання
 export function renderEvacHUD(ctx, canvas, state) {
   const wm = state.worldManager;

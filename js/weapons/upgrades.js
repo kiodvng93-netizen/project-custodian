@@ -128,10 +128,21 @@ export function generateDraftCards(weaponManager, count = 3) {
     if (card) candidates.push(card);
   }
 
-  const shuffled = shuffleCopy(candidates);
+  const picked = [];
   if (availableEvolutions.length > 0) {
-    const evoCard = availableEvolutions[Math.floor(Math.random() * availableEvolutions.length)];
-    return [evoCard, ...shuffled.slice(0, Math.max(0, count - 1))];
+    picked.push(availableEvolutions[Math.floor(Math.random() * availableEvolutions.length)]);
   }
-  return shuffled.slice(0, count);
+
+  // На старті гарантуємо нову зброю: з одним бластером без неї не вижити
+  const guaranteed = CONFIG.DRAFT.newWeaponCardsBySlots[weaponManager.slots.length] || 0;
+  const mounts = shuffleCopy(candidates.filter(c => c.id.endsWith('_mount')));
+  for (let i = 0; i < guaranteed && i < mounts.length && picked.length < count; i++) picked.push(mounts[i]);
+
+  for (const card of shuffleCopy(candidates)) {
+    if (picked.length >= count) break;
+    if (!picked.includes(card)) picked.push(card);
+  }
+  // Еволюція лишається першою; решта у випадковому порядку
+  const head = picked[0] && picked[0].isEvolutionCard ? [picked.shift()] : [];
+  return [...head, ...shuffleCopy(picked)];
 }

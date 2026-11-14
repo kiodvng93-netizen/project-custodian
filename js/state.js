@@ -49,9 +49,11 @@ export const state = {
   pickupManager: null,
   decalManager: null,
   gibManager: null,
+  corpseManager: null,
   spriteManager: null,
 
   shockwaves: [],
+  flashes: [],   // короткі спалахи смерті {x, y, radius, tint, life, maxLife} (js/gore.js палітри)
   damageTexts: [],
   draftCards: [],
 };
@@ -70,8 +72,24 @@ export function triggerHitStop(duration) {
   state.hitStopTimer = Math.max(state.hitStopTimer, duration);
 }
 
+const MAX_SHOCKWAVES = 140;
+const MAX_FLASHES = 80;
+
 export function spawnShockwave(x, y, options = {}) {
+  if (state.shockwaves.length >= MAX_SHOCKWAVES) state.shockwaves.shift();
   state.shockwaves.push(new Shockwave(x, y, options));
+}
+
+export function spawnFlash(x, y, { radius = 20, tint = 0xffffff, life = 0.16 } = {}) {
+  if (state.flashes.length >= MAX_FLASHES) state.flashes.shift();
+  state.flashes.push({ x, y, radius, tint, life, maxLife: life });
+}
+
+export function updateFlashes(dt) {
+  for (let i = state.flashes.length - 1; i >= 0; i--) {
+    state.flashes[i].life -= dt;
+    if (state.flashes[i].life <= 0) state.flashes.splice(i, 1);
+  }
 }
 
 export function addDamageText(x, y, text) {

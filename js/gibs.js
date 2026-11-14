@@ -2,6 +2,10 @@
 
 import { CONFIG } from './config.js';
 import { state } from './state.js';
+import { BLOOD, bloodFor, paintSmear } from './gore.js';
+
+// Колір панцира (шматки тіла) за типом ворога
+const SHELL_COLOR = { sprout: '#2b5d34', stalker: '#5c1a1a', dasher: '#b35a14', warden: '#4a1942' };
 
 export class Gib {
   constructor(x, y, vx, vy, options = {}) {
@@ -52,16 +56,18 @@ export class Gib {
         this.vx *= 0.65;
         this.vy *= 0.65;
 
-        if (decalManager && Math.random() < 0.6) {
-          decalManager.addSplatter(this.x, this.y, {
-            type: this.type,
-            radius: this.size * 0.9,
-            count: 3
-          });
+        if (decalManager) {
+          decalManager.addSplatter(this.x, this.y, { type: this.type, radius: this.size * 0.9, dirX: this.vx, dirY: this.vy, power: 0.8 });
         }
       } else {
         this.vz = 0;
         const groundSpeed = Math.hypot(this.vx, this.vy);
+        // Ковзаючи по землі, уламок лишає кривавий мазок
+        this.smearDist = (this.smearDist || 0) + groundSpeed * dt;
+        if (decalManager && groundSpeed > 25 && this.smearDist >= CONFIG.GIBS.smearStep) {
+          this.smearDist = 0;
+          paintSmear(decalManager, this.x, this.y, this.type, this.size);
+        }
         if (groundSpeed < 8) {
           this.stoppedTimer += dt;
           if (this.stoppedTimer >= 0.15) {
@@ -148,30 +154,17 @@ export class GibManager {
       fatalAngle = Math.atan2(enemy.y - sourceY, enemy.x - sourceX);
     }
 
-    let count = 5;
-    let baseSpeed = 190;
-    let type = 'slime';
-    let color = '#48bb78';
-    let outline = '#22543d';
-    let shape = 'chunk';
-
-    if (enemy.typeKey === 'sprout') {
-      count = 5; baseSpeed = 220; type = 'slime';
-      color = '#68d391'; outline = '#276749';
-      shape = Math.random() > 0.5 ? 'shard' : 'chunk';
-    } else if (enemy.typeKey === 'stalker') {
-      count = 9; baseSpeed = 260; type = 'corrupt';
-      color = '#e53e3e'; outline = '#551a1a';
-      shape = 'plate';
-    } else if (enemy.typeKey === 'dasher') {
-      count = 7; baseSpeed = 340; type = 'amber';
-      color = '#ed8936'; outline = '#7b341e';
-      shape = 'shard';
-    } else if (enemy.typeKey === 'warden') {
-      count = 22; baseSpeed = 420; type = 'oil';
-      color = '#f687b3'; outline = '#702459';
-      shape = 'plate';
-    }
+    // Колір уламків = колір крові ворога (gore.js); темні шматки «тіла» + яскраві краплі
+    const type = bloodFor(enemy);
+    const pal = BLOOD[type];
+    const shell = SHELL_COLOR[enemy.typeKey] || enemy.color;
+    let count = 5, baseSpeed = 220, shape = 'chunk';
+    if (enemy.typeKey === 'sprout') { count = 6; baseSpeed = 240; }
+    else if (enemy.typeKey === 'stalker') { count = 9; baseSpeed = 270; shape = 'plate'; }
+    else if (enemy.typeKey === 'dasher') { count = 7; baseSpeed = 340; shape = 'shard'; }
+    else if (enemy.typeKey === 'warden') { count = 24; baseSpeed = 420; shape = 'plate'; }
+    if (enemy.isElite) count += 4;
+    count = Math.round(count * ((CONFIG.GIBS && CONFIG.GIBS.countMult) || 1));
 
     for (let i = 0; i < count; i++) {
       if (this.gibs.length >= this.maxGibs) {
@@ -183,11 +176,13 @@ export class GibManager {
       const angle = fatalAngle + (Math.random() - 0.5) * spread;
       const speed = baseSpeed * (0.6 + Math.random() * 0.9);
 
+      // Кожен третій — шматок панцира, решта — згустки крові
+      const isShell = i % 3 === 0;
       this.gibs.push(new Gib(enemy.x, enemy.y, Math.cos(angle) * speed, Math.sin(angle) * speed, {
-        size: (enemy.radius * 0.28) + Math.random() * 3,
-        color: i % 2 === 0 ? color : '#e2e8f0',
-        outline,
-        shape,
+        size: (enemy.radius * (isShell ? 0.3 : 0.24)) + Math.random() * 3,
+        color: isShell ? shell : pal.hex,
+        outline: `rgb(${pal.dark.join(', ')})`,
+        shape: isShell ? shape : 'chunk',
         type
       }));
     }

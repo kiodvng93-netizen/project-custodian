@@ -1,10 +1,12 @@
 // js/main.js — Легковесний цикл движка, обробка вводу і координатор систем
 
 import { CONFIG, MetaProgression, saveMetaProgression } from './config.js';
-import { state, setRunRestartHandler } from './state.js';
+import { state, setRunRestartHandler, updateFlashes } from './state.js';
 import { Telemetry } from './telemetry.js';
 import { DecalManager } from './decals.js';
 import { GibManager } from './gibs.js';
+import { CorpseManager } from './corpses.js';
+import { updateRobotTracks, resetGore } from './gore.js';
 import { SpriteManager } from './sprites.js';
 import { PickupManager } from './pickups.js';
 import { renderWorldGrid, renderSanctuaryHub } from './render/environment.js';
@@ -27,7 +29,7 @@ import {
   renderPauseMenu,
   renderSanctuaryHUD
 } from './render/ui.js';
-import { renderObjectiveArrow, renderEvacHUD, renderRunEndOverlay } from './render/runUI.js';
+import { renderObjectiveArrow, renderEvacHUD, renderRunEndOverlay, renderHiveAlertHUD } from './render/runUI.js';
 import { getRunObjective } from './world/objective.js';
 import { canLeaveRunEnd, startNewRun } from './run.js';
 
@@ -69,6 +71,7 @@ state.player = new Player(0, 0);
 state.spriteManager = new SpriteManager();
 state.decalManager = new DecalManager();
 state.gibManager = new GibManager();
+state.corpseManager = new CorpseManager();
 state.weaponManager = new WeaponManager(state.player);
 state.pickupManager = new PickupManager();
 state.enemyManager = new EnemyManager();
@@ -79,6 +82,8 @@ setRunRestartHandler(() => {
   state.weaponManager.reset();
   state.decalManager.clear();
   state.gibManager.clear();
+  state.corpseManager.clear();
+  resetGore();
 
   // Смерть під час драфту/Воркшопу не має переносити меню й уповільнення в новий забіг
   resetDraftQueue();
@@ -93,6 +98,7 @@ setRunRestartHandler(() => {
   state.worldManager = new WorldManager();
   state.damageTexts.length = 0;
   state.shockwaves.length = 0;
+  state.flashes.length = 0;
   camera.x = 0; camera.y = 0; camera.trauma = 0;
   state.hitStopTimer = 0;
 });
@@ -283,6 +289,7 @@ function renderFrame() {
     if (state.decalManager) state.decalManager.render(ctx, camera.x, camera.y, canvas.width, canvas.height);
     renderSanctuaryHub(ctx, state.spriteManager, state.worldManager.sanctuary);
     state.worldManager.render(ctx);
+    state.corpseManager.render(ctx);
     state.pickupManager.render(ctx, state.spriteManager);
     if (state.gibManager) state.gibManager.render(ctx);
     for (const sw of state.shockwaves) sw.render(ctx);
@@ -322,9 +329,10 @@ function renderFrame() {
   ctx.fillText(`EXPEDITION SCRAP: ${Telemetry.metrics.resourcesCollected.techScrap}`, 16, 28);
   ctx.fillStyle = '#ecc94b';
   ctx.fillText(`SANCTUARY VAULT: ${MetaProgression.bankedTechScrap} SCRAP`, 16, 46);
+  renderHiveAlertHUD(ctx, canvas, state);
   if (state.player.godMode) {
-    ctx.fillStyle = '#ffd700'; ctx.font = 'bold 13px monospace';
-    ctx.fillText('[GOD MODE ON: 15x DMG + INVULNERABLE] (Press G)', 16, 66);
+    ctx.fillStyle = '#ffd700'; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'left';
+    ctx.fillText('[GOD MODE ON: 15x DMG + INVULNERABLE] (Press G)', 16, canvas.height - 40);
   }
   ctx.fillStyle = 'rgba(160, 174, 192, 0.85)'; ctx.font = '12px monospace';
   ctx.fillText(`Horde: ${state.enemyManager.enemies.length}/400 | Weapons: ${state.weaponManager.slots.length}/6 | [SPACE] Dash | [T] Stress | [ESC] Pause`, 16, canvas.height - 18);
@@ -355,7 +363,10 @@ function gameLoop(currentTimestamp) {
     for (let i = 0; i < state.worldManager.nests.length; i++) _allTargets.push(state.worldManager.nests[i]);
     state.weaponManager.update(dt, _allTargets);
     if (state.gibManager) state.gibManager.update(dt, state.decalManager);
+    state.corpseManager.update(dt, state.player, state.enemyManager, state.decalManager);
+    updateRobotTracks(state.decalManager, state.player, dt);
     for (let i = state.shockwaves.length - 1; i >= 0; i--) { state.shockwaves[i].update(dt); if (!state.shockwaves[i].alive) state.shockwaves.splice(i, 1); }
+    updateFlashes(dt);
     for (let i = state.pickupManager.pickups.length - 1; i >= 0; i--) {
       const p = state.pickupManager.pickups[i];
       p.update(dt, state.player);
