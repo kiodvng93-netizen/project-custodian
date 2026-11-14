@@ -193,14 +193,14 @@ export function renderWorkshopOverlay(ctx, canvas, perks) {
   ctx.fillStyle = '#ecc94b';
   ctx.font = 'bold 22px monospace';
   ctx.textAlign = 'center';
-  ctx.fillText('SANCTUARY WORKSHOP (PERMANENT UPGRADES)', canvas.width / 2, canvas.height / 2 - 185);
+  ctx.fillText('SANCTUARY WORKSHOP (PERMANENT UPGRADES)', canvas.width / 2, canvas.height / 2 - 200);
   ctx.fillStyle = '#a0aec0';
   ctx.font = '13px monospace';
-  ctx.fillText(`AVAILABLE VAULT SCRAP: ${MetaProgression.bankedTechScrap} | Press [B] to Close`, canvas.width / 2, canvas.height / 2 - 155);
+  ctx.fillText(`AVAILABLE VAULT SCRAP: ${MetaProgression.bankedTechScrap} | Press [B] to Close`, canvas.width / 2, canvas.height / 2 - 172);
 
-  const pw = 440, ph = 60, gap = 12;
+  const pw = 450, ph = 52, gap = 10;
   const startX = canvas.width / 2 - pw / 2;
-  const startY = canvas.height / 2 - 135;
+  const startY = canvas.height / 2 - 150;
 
   for (let i = 0; i < perks.length; i++) {
     const perk = perks[i], py = startY + i * (ph + gap);
@@ -218,15 +218,15 @@ export function renderWorkshopOverlay(ctx, canvas, perks) {
     ctx.textAlign = 'left';
     ctx.fillStyle = isMaxed ? '#9ae6b4' : canAfford ? '#f6e05e' : '#a0aec0';
     ctx.font = 'bold 13px monospace';
-    ctx.fillText(`${perk.title} [RANK ${rank}${perk.maxRank ? `/${perk.maxRank}` : ''}]`, startX + 16, py + 24);
+    ctx.fillText(`${perk.title} [RANK ${rank}${perk.maxRank ? `/${perk.maxRank}` : ''}]`, startX + 16, py + 20);
     ctx.fillStyle = '#cbd5e0';
     ctx.font = '11px monospace';
-    ctx.fillText(perk.desc, startX + 16, py + 45);
+    ctx.fillText(perk.desc, startX + 16, py + 39);
 
     ctx.textAlign = 'right';
     ctx.fillStyle = isMaxed ? '#68d391' : canAfford ? '#48bb78' : '#e53e3e';
     ctx.font = 'bold 12px monospace';
-    ctx.fillText(isMaxed ? '[MAXED]' : `COST: ${cost} SCRAP`, startX + pw - 16, py + 34);
+    ctx.fillText(isMaxed ? '[MAXED]' : `COST: ${cost} SCRAP`, startX + pw - 16, py + 30);
   }
 }
 

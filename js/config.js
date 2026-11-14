@@ -24,6 +24,17 @@ export const CONFIG = {
     chestSpawnChance: 0.65,
   },
 
+  HAZARDS: {
+    cellSize: 520,
+    slimeSlowFactor: 0.50,
+    ring2SpawnChance: 0.68,
+    ring3SpawnChance: 0.88,
+    minRadius: 155,
+    maxRadius: 235,
+    trackPerkResistPerRank: 0.35,
+    trackPerkMaxRank: 2,
+  },
+
   OUTPOST: {
     radius: 32,
     captureRadius: 170,
@@ -136,6 +147,10 @@ export const CONFIG = {
     despawnRadius: 1800,
     hubSafeRadius: 360,
     rampTimeSeconds: 120,
+    ARMOR: {
+      frontHalfAngle: (65 * Math.PI) / 180,
+      bulletDamageMult: 0.20,
+    },
     WAVE: {
       cycleDuration: 40,
       surgeDuration: 22,
@@ -186,7 +201,14 @@ export const CONFIG = {
 const DEFAULT_META_SAVE = {
   version: 1,
   bankedTechScrap: 0,
-  perks: { chassisArmor: 0, engineSpeed: 0, shieldCapacitor: 0, naniteScavenge: 0, cargoSecurity: 0 }
+  perks: {
+    chassisArmor: 0,
+    engineSpeed: 0,
+    shieldCapacitor: 0,
+    naniteScavenge: 0,
+    cargoSecurity: 0,
+    terrainTracks: 0
+  }
 };
 
 export function loadMetaProgression() {
@@ -202,7 +224,8 @@ export function loadMetaProgression() {
         engineSpeed: Number(parsed.perks && parsed.perks.engineSpeed) || 0,
         shieldCapacitor: Number(parsed.perks && parsed.perks.shieldCapacitor) || 0,
         naniteScavenge: Number(parsed.perks && parsed.perks.naniteScavenge) || 0,
-        cargoSecurity: Number(parsed.perks && parsed.perks.cargoSecurity) || 0
+        cargoSecurity: Number(parsed.perks && parsed.perks.cargoSecurity) || 0,
+        terrainTracks: Number(parsed.perks && parsed.perks.terrainTracks) || 0
       }
     };
   } catch (e) {

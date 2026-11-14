@@ -105,7 +105,8 @@ const WORKSHOP_PERKS = [
   { key: 'engineSpeed', title: 'MOTOR TUNING', costBase: 4, costScale: 3, desc: '+8 Base Movement Speed permanently', buy: () => state.player.applyMetaUpgrades(false) },
   { key: 'shieldCapacitor', title: 'SHIELD CAPACITOR', costBase: 5, costScale: 4, desc: '-2.0s Shield Recharge Time permanently', buy: () => state.player.applyMetaUpgrades(false) },
   { key: 'naniteScavenge', title: 'NANITE HARVESTER', costBase: 6, costScale: 5, desc: '+1 Extra Tech Scrap from Nests', buy: () => {} },
-  { key: 'cargoSecurity', title: 'HOLD SECURITY', maxRank: 2, costBase: 5, costScale: 5, desc: 'Reduce scrap lost on death (50% → 40% → 25%)', buy: () => {} }
+  { key: 'cargoSecurity', title: 'HOLD SECURITY', maxRank: 2, costBase: 5, costScale: 5, desc: 'Reduce scrap lost on death (50% → 40% → 25%)', buy: () => {} },
+  { key: 'terrainTracks', title: 'ALL-TERRAIN TRACKS', maxRank: CONFIG.HAZARDS.trackPerkMaxRank, costBase: 4, costScale: 5, desc: '-35% Slime/Web Slow Penalty per rank (Ring 2+)', buy: () => state.player.applyMetaUpgrades(false) }
 ];
 
 function triggerLevelUp() {
@@ -204,7 +205,7 @@ window.addEventListener('click', (e) => {
     return;
   }
   if (state.isWorkshopOpen) {
-    const pw = 440, ph = 60, gap = 12, startX = canvas.width / 2 - pw / 2, startY = canvas.height / 2 - 135;
+    const pw = 450, ph = 52, gap = 10, startX = canvas.width / 2 - pw / 2, startY = canvas.height / 2 - 150;
     for (let i = 0; i < WORKSHOP_PERKS.length; i++) {
       const py = startY + i * (ph + gap);
       if (e.clientX >= startX && e.clientX <= startX + pw && e.clientY >= py && e.clientY <= py + ph) { buyWorkshopPerk(WORKSHOP_PERKS[i]); break; }
@@ -216,6 +217,9 @@ document.getElementById('btnCopyJSON').addEventListener('click', () => navigator
 document.getElementById('btnResetTelemetry').addEventListener('click', () => Telemetry.resetRun());
 
 function renderWorldLabelsOverlay() {
+  if (state.worldManager && state.worldManager.hazards) {
+    state.worldManager.hazards.renderWorldOverlay(ctx, state.enemyManager, camera, canvas.width, canvas.height);
+  }
   const sanc = state.worldManager && state.worldManager.sanctuary;
   if (pixi.ready && sanc) sanc.renderOverlay(ctx);
   if (pixi.ready && state.worldManager && state.worldManager.outposts) {
@@ -248,8 +252,11 @@ function renderWorldLabelsOverlay() {
       ctx.fillText(label, e.x, e.y - e.radius - 14);
     }
   }
-  ctx.fillStyle = '#feb2b2'; ctx.font = 'bold 13px monospace';
-  for (const dtText of state.damageTexts) ctx.fillText(dtText.text, dtText.x, dtText.y);
+  ctx.font = 'bold 13px monospace';
+  for (const dtText of state.damageTexts) {
+    ctx.fillStyle = dtText.color || '#feb2b2';
+    ctx.fillText(dtText.text, dtText.x, dtText.y);
+  }
 }
 
 function renderFrame() {
@@ -293,6 +300,7 @@ function renderFrame() {
   state.worldManager.renderCompass(ctx, state.player, canvas.width, canvas.height);
   renderXPBar(ctx, canvas, state);
   renderSanctuaryHUD(ctx, canvas, state);
+  if (state.worldManager.hazards) state.worldManager.hazards.renderHazardHUD(ctx, canvas, state.player);
   if (state.isDrafting) renderDraftOverlay(ctx, canvas, state);
   if (state.isWorkshopOpen) renderWorkshopOverlay(ctx, canvas, WORKSHOP_PERKS);
   renderOutpostHUD(ctx, canvas, state.worldManager, state.player);

@@ -1,4 +1,4 @@
-// js/world/manager.js — Менеджер світу: руїни, гнізда, аутпости, Хаб, колізії та телепорт
+// js/world/manager.js — Менеджер світу: руїни, гнізда, аутпости, Хаб, колізії, загрози Кільця 2+ та телепорт
 
 import { CONFIG, MetaProgression, saveMetaProgression } from '../config.js';
 import { state } from '../state.js';
@@ -6,6 +6,7 @@ import { Telemetry } from '../telemetry.js';
 import { ObstacleWall, LootChest, Landmark, CorePickup, CorruptedNest } from './structures.js';
 import { SanctuaryHub } from './sanctuary.js';
 import { InsuranceOutpost } from './outpost.js';
+import { RingHazardManager } from './hazards.js';
 import { renderRadarMinimap } from './minimap.js';
 
 export class WorldManager {
@@ -17,6 +18,7 @@ export class WorldManager {
     const lm = CONFIG.WORLD.landmarkPos;
     this.landmark = new Landmark(lm.x, lm.y);
     this.sanctuary = new SanctuaryHub();
+    this.hazards = new RingHazardManager();
     this.coreDrop = null;
     this.transferActive = false;
     this.transferTimer = 0;

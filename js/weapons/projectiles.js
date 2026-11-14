@@ -1,6 +1,6 @@
 // js/weapons/projectiles.js — Універсальні снаряди, мортирні міни та наземні зони
 
-import { state } from '../state.js';
+import { state, spawnShockwave } from '../state.js';
 
 export class Projectile {
   constructor(x, y, vx, vy, damage, range, options = {}) {
@@ -15,6 +15,7 @@ export class Projectile {
     this.size = options.size || 5;
     this.pierceLeft = options.pierce || 1;
     this.color = options.color || '#63b3ed';
+    this.armorPiercing = Boolean(options.armorPiercing);
     this.hitEnemies = new Set();
     this.alive = true;
   }
@@ -39,7 +40,11 @@ export class Projectile {
       if (!enemy.alive || this.hitEnemies.has(enemy)) continue;
 
       if (Math.hypot(this.x - enemy.x, this.y - enemy.y) <= this.size + enemy.radius) {
-        enemy.takeDamage(this.damage, this.x - this.vx, this.y - this.vy);
+        const prevArmorFlash = enemy.armorFlashTimer || 0;
+        enemy.takeDamage(this.damage, this.x - this.vx, this.y - this.vy, false, this.armorPiercing);
+        if (!this.armorPiercing && enemy.armorFlashTimer > prevArmorFlash) {
+          spawnShockwave(this.x, this.y, { radius: 4, maxRadius: 22, color: '#90cdf4', speed: 170, lineWidth: 2 });
+        }
         this.hitEnemies.add(enemy);
         if (spawnParticles) spawnParticles(this.x, this.y);
         this.pierceLeft--;
@@ -170,9 +175,9 @@ export class GroundZone {
           enemy.sporeSlowMult = this.cfg.slowFactor;
         }
         if (this.cfg.zoneDamage) {
-          enemy.takeDamage(this.cfg.zoneDamage * this.damageMult * dt, this.x, this.y);
+          enemy.takeDamage(this.cfg.zoneDamage * this.damageMult * dt, this.x, this.y, false, true);
         } else if (doDotTick && this.cfg.dotDamage) {
-          enemy.takeDamage(this.cfg.dotDamage * this.damageMult, this.x, this.y);
+          enemy.takeDamage(this.cfg.dotDamage * this.damageMult, this.x, this.y, false, true);
         }
         if (this.cfg.chainDamage) trapped.push(enemy);
       }
@@ -201,7 +206,7 @@ export class GroundZone {
         }
 
         if (target) {
-          target.takeDamage(this.cfg.chainDamage * this.damageMult, source.x, source.y);
+          target.takeDamage(this.cfg.chainDamage * this.damageMult, source.x, source.y, false, true);
           if (spawnParticles) spawnParticles(target.x, target.y);
           this.activeArcs.push({ fromX: source.x, fromY: source.y, toX: target.x, toY: target.y, life: 0.12, maxLife: 0.12 });
         }

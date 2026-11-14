@@ -155,6 +155,16 @@ export const UPGRADE_POOL = [
     }
   },
   {
+    id: 'slime_tracks',
+    title: 'ALL-TERRAIN CLEATS',
+    desc: '+50% Slime/Web Slow Resistance & +8% Move Speed',
+    apply: () => {
+      state.player.draftSlimeResist = Math.min(1.0, (state.player.draftSlimeResist || 0) + 0.5);
+      state.player.slimeSlowResist = Math.min(1.0, (state.player.slimeSlowResist || 0) + 0.5);
+      state.player.speed = Math.round(state.player.speed * 1.08);
+    }
+  },
+  {
     id: 'titan_armor',
     title: 'TITAN CHASSIS',
     desc: '+40 Max HP & Full Repair',
@@ -198,6 +208,9 @@ export function generateDraftCards(weaponManager, count = 3) {
   let candidates = UPGRADE_POOL;
   if (weaponManager.slots.length >= weaponManager.maxSlots) {
     candidates = candidates.filter(card => !card.weaponName || weaponManager.hasWeapon(card.weaponName));
+  }
+  if (state.player && state.player.slimeSlowResist >= 1.0) {
+    candidates = candidates.filter(card => card.id !== 'slime_tracks');
   }
 
   const shuffled = shuffleCopy(candidates);
