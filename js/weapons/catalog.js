@@ -214,6 +214,31 @@ export const EVOLUTIONS = {
   },
 };
 
+// Один ранг апгрейду кожної зброї (мутує runConfig цього забігу).
+// Використовується картками драфту і переносом рангів інгредієнтів в еволюцію.
+export const WEAPON_UPGRADES = {
+  blaster: (c) => { c.damage += 6; c.fireRate = Math.max(0.16, c.fireRate * 0.8); },
+  saw: (c) => { c.count = Math.min(4, c.count + 1); c.damage += 6; },
+  mortar: (c) => { c.damage += 14; c.zoneRadius = Math.min(120, c.zoneRadius + 15); },
+  tesla: (c) => { c.damage += 8; c.chainCount += 1; },
+  drone: (c) => { c.count = Math.min(4, c.count + 1); c.damage += 5; },
+  flamer: (c) => { c.damage += 18; c.range = Math.min(260, c.range + 25); },
+  staticAura: (c) => { c.damage += 5; c.radius = Math.min(180, c.radius + 15); },
+
+  voltHurricane: (c) => { c.damage += 8; c.chainDamage += 6; c.count = Math.min(4, c.count + 1); },
+  biomassIncinerator: (c) => { c.damage += 15; c.zoneDamage += 8; c.zoneRadius = Math.min(140, c.zoneRadius + 10); },
+  hyperionTurret: (c) => { c.damage += 10; c.salvoDamage += 6; c.fireRate = Math.max(0.2, c.fireRate * 0.9); },
+  stormSpore: (c) => { c.damage += 12; c.chainDamage += 6; c.zoneRadius = Math.min(130, c.zoneRadius + 10); },
+};
+
+export function weaponKeyByName(name) {
+  const target = name.toLowerCase().trim();
+  for (const cfg of Object.values(WEAPON_CATALOG)) {
+    if (cfg.name.toLowerCase() === target) return cfg.key;
+  }
+  return null;
+}
+
 export function createRunWeaponConfigs() {
   const clone = {};
   for (const [key, cfg] of Object.entries(WEAPON_CATALOG)) {

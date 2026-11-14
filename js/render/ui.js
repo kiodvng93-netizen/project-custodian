@@ -106,6 +106,13 @@ export function renderArsenalHUD(ctx, canvas, state) {
       ctx.textAlign = 'left';
       const title = (isEvo ? '★ ' : '') + wpn.name;
       ctx.fillText(title.length > 13 ? `${title.slice(0, 12)}…` : title, x + 6, y + 14);
+      const rank = wpn.cfg ? state.weaponManager.getRank(wpn.cfg.key) : 0;
+      if (rank > 0) {
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#f6e05e';
+        ctx.fillText(`Mk${rank + 1}`, x + slotW - 6, y + 14);
+        ctx.textAlign = 'left';
+      }
 
       if (wpn.cfg) {
         const dmg = wpn.cfg.damage || wpn.cfg.zoneDamage || 0;

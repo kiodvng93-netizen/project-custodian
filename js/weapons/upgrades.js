@@ -4,122 +4,24 @@ import { CONFIG } from '../config.js';
 import { state } from '../state.js';
 import { EVOLUTIONS } from './catalog.js';
 
-export const UPGRADE_POOL = [
-  {
-    id: 'blaster_tune',
-    title: 'OVERCLOCK BLASTER',
-    weaponName: 'Tech Blaster',
-    desc: '+6 Damage, +20% Fire Rate',
-    apply: () => {
-      const c = state.weaponManager.getConfig('blaster');
-      if (c) {
-        c.damage += 6;
-        c.fireRate = Math.max(0.16, c.fireRate * 0.8);
-      }
-    }
-  },
-  {
-    id: 'scrap_saw_weapon',
-    title: 'SCRAP SAW (ORBITAL)',
-    weaponName: 'Scrap Saw',
-    desc: 'Mount orbital circular saw blade',
-    apply: () => {
-      if (!state.weaponManager.hasWeapon('Scrap Saw')) {
-        state.weaponManager.addWeaponByKey('saw');
-      } else {
-        const c = state.weaponManager.getConfig('saw');
-        if (c) {
-          c.count = Math.min(4, c.count + 1);
-          c.damage += 6;
-        }
-      }
-    }
-  },
-  {
-    id: 'bio_mortar_weapon',
-    title: 'BIO-SPORE MORTAR',
-    weaponName: 'Bio-Spore Mortar',
-    desc: 'Lob spores creating lingering slowing AoE clouds',
-    apply: () => {
-      if (!state.weaponManager.hasWeapon('Bio-Spore Mortar')) {
-        state.weaponManager.addWeaponByKey('mortar');
-      } else {
-        const c = state.weaponManager.getConfig('mortar');
-        if (c) {
-          c.damage += 14;
-          c.zoneRadius = Math.min(120, c.zoneRadius + 15);
-        }
-      }
-    }
-  },
-  {
-    id: 'tesla_arc_weapon',
-    title: 'TESLA ARC (CHAIN)',
-    weaponName: 'Tesla Arc',
-    desc: 'Unleash chained lightning bouncing between foes',
-    apply: () => {
-      if (!state.weaponManager.hasWeapon('Tesla Arc')) {
-        state.weaponManager.addWeaponByKey('tesla');
-      } else {
-        const c = state.weaponManager.getConfig('tesla');
-        if (c) {
-          c.damage += 8;
-          c.chainCount += 1;
-        }
-      }
-    }
-  },
-  {
-    id: 'aegis_drones_weapon',
-    title: 'AEGIS DRONES (ORBITAL)',
-    weaponName: 'Aegis Drones',
-    desc: 'Deploy orbiting combat drones with laser interceptors',
-    apply: () => {
-      if (!state.weaponManager.hasWeapon('Aegis Drones')) {
-        state.weaponManager.addWeaponByKey('drone');
-      } else {
-        const c = state.weaponManager.getConfig('drone');
-        if (c) {
-          c.count = Math.min(4, c.count + 1);
-          c.damage += 5;
-        }
-      }
-    }
-  },
-  {
-    id: 'plasma_purifier_weapon',
-    title: 'PLASMA PURIFIER (CONE)',
-    weaponName: 'Plasma Purifier',
-    desc: 'Unleash continuous conical stream of incinerating plasma',
-    apply: () => {
-      if (!state.weaponManager.hasWeapon('Plasma Purifier')) {
-        state.weaponManager.addWeaponByKey('flamer');
-      } else {
-        const c = state.weaponManager.getConfig('flamer');
-        if (c) {
-          c.damage += 18;
-          c.range = Math.min(260, c.range + 25);
-        }
-      }
-    }
-  },
-  {
-    id: 'static_aura_weapon',
-    title: 'STATIC AURA (AURA)',
-    weaponName: 'Static Aura',
-    desc: 'Emit pulsing electromagnetic field slowing and shocking nearby foes',
-    apply: () => {
-      if (!state.weaponManager.hasWeapon('Static Aura')) {
-        state.weaponManager.addWeaponByKey('staticAura');
-      } else {
-        const c = state.weaponManager.getConfig('staticAura');
-        if (c) {
-          c.damage += 5;
-          c.radius = Math.min(180, c.radius + 15);
-        }
-      }
-    }
-  },
+// Картки зброї: якщо зброї немає — встановити, якщо є — +1 ранг (WEAPON_UPGRADES у catalog.js).
+// requiresOwned: лише апгрейд (стартовий Blaster і еволюції не встановлюються з драфту).
+const WEAPON_CARDS = [
+  { key: 'blaster', title: 'TECH BLASTER', requiresOwned: true, upgradeDesc: '+6 Damage, +20% Fire Rate' },
+  { key: 'saw', title: 'SCRAP SAW (ORBITAL)', mountDesc: 'Mount orbital circular saw blade', upgradeDesc: '+1 Blade (max 4), +6 Damage' },
+  { key: 'mortar', title: 'BIO-SPORE MORTAR', mountDesc: 'Lob spores creating lingering slowing AoE clouds', upgradeDesc: '+14 Damage, +15 Cloud Radius (max 120)' },
+  { key: 'tesla', title: 'TESLA ARC (CHAIN)', mountDesc: 'Unleash chained lightning bouncing between foes', upgradeDesc: '+8 Damage, +1 Chain Jump' },
+  { key: 'drone', title: 'AEGIS DRONES (ORBITAL)', mountDesc: 'Deploy orbiting combat drones with laser interceptors', upgradeDesc: '+1 Drone (max 4), +5 Damage' },
+  { key: 'flamer', title: 'PLASMA PURIFIER (CONE)', mountDesc: 'Auto-aimed cone of incinerating plasma that burns through foes', upgradeDesc: '+18 Damage, +25 Range (max 260)' },
+  { key: 'staticAura', title: 'STATIC AURA (AURA)', mountDesc: 'Emit pulsing electromagnetic field slowing and shocking nearby foes', upgradeDesc: '+5 Damage, +15 Radius (max 180)' },
+
+  { key: 'voltHurricane', title: 'VOLT HURRICANE', requiresOwned: true, upgradeDesc: '+8 Damage, +6 Chain Damage, +1 Blade (max 4)' },
+  { key: 'biomassIncinerator', title: 'BIOMASS INCINERATOR', requiresOwned: true, upgradeDesc: '+15 Impact, +8 Burn Zone Damage, +10 Radius (max 140)' },
+  { key: 'hyperionTurret', title: 'HYPERION TURRET', requiresOwned: true, upgradeDesc: '+10 Damage, +6 Salvo Damage, +10% Fire Rate' },
+  { key: 'stormSpore', title: 'STORM SPORE', requiresOwned: true, upgradeDesc: '+12 Damage, +6 Chain Damage, +10 Radius (max 130)' },
+];
+
+const PASSIVE_CARDS = [
   {
     id: 'nanite_regen',
     title: 'NANITE REPAIR',
@@ -168,6 +70,27 @@ export const UPGRADE_POOL = [
   }
 ];
 
+// Перетворює опис картки зброї на конкретну картку з урахуванням арсеналу; null — не пропонувати
+function buildWeaponCard(def, wm) {
+  const owned = wm.hasWeaponKey(def.key);
+  if (owned) {
+    const nextRank = wm.getRank(def.key) + 1;
+    return {
+      id: `${def.key}_upgrade`,
+      title: `${def.title.replace(/\s*\(.*\)$/, '')} Mk${nextRank + 1}`, // «(ORBITAL)» прибираємо, щоб влізло в картку
+      desc: def.upgradeDesc,
+      apply: () => wm.upgradeWeapon(def.key)
+    };
+  }
+  if (def.requiresOwned || wm.consumedKeys.has(def.key) || wm.slots.length >= wm.maxSlots) return null;
+  return {
+    id: `${def.key}_mount`,
+    title: def.title,
+    desc: def.mountDesc,
+    apply: () => wm.addWeaponByKey(def.key)
+  };
+}
+
 function shuffleCopy(list) {
   const arr = [...list];
   for (let i = arr.length - 1; i > 0; i--) {
@@ -188,24 +111,27 @@ export function generateDraftCards(weaponManager, count = 3) {
       !weaponManager.hasWeapon(resultCfg.name) &&
       evo.ingredients.every(name => weaponManager.hasWeapon(name))
     ) {
+      const carried = weaponManager.getCarriedRanks(key);
       availableEvolutions.push({
         id: evo.id,
         title: `★ EVOLUTION: ${evo.name}`,
-        desc: evo.desc,
+        desc: carried > 0 ? `${evo.desc} Keeps all ${carried} upgrades.` : evo.desc,
         isEvolutionCard: true,
         apply: () => weaponManager.evolveWeapons(key)
       });
     }
   }
 
-  let candidates = UPGRADE_POOL;
-  if (weaponManager.slots.length >= weaponManager.maxSlots) {
-    candidates = candidates.filter(card => !card.weaponName || weaponManager.hasWeapon(card.weaponName));
+  const candidates = [...PASSIVE_CARDS];
+  for (const def of WEAPON_CARDS) {
+    const card = buildWeaponCard(def, weaponManager);
+    if (card) candidates.push(card);
   }
 
   const shuffled = shuffleCopy(candidates);
   if (availableEvolutions.length > 0) {
-    return [availableEvolutions[0], ...shuffled.slice(0, Math.max(0, count - 1))];
+    const evoCard = availableEvolutions[Math.floor(Math.random() * availableEvolutions.length)];
+    return [evoCard, ...shuffled.slice(0, Math.max(0, count - 1))];
   }
   return shuffled.slice(0, count);
 }

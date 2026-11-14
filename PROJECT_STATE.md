@@ -1,4 +1,4 @@
-# PROJECT CUSTODIAN — MASTER STATE & HANDOVER (v4.9)
+# PROJECT CUSTODIAN — MASTER STATE & HANDOVER (v4.10)
 **Дата оновлення:** 14 листопада 2026
 **Статус:** Модульний ES6+ проєкт, гібридний рендер **PixiJS v8 (WebGL світ + Y-sorting + тіні)** + **Canvas 2D UI**. Світ — лише **Кільце 1** (`15 000px`, межа світу). Фокус: зробити основний цикл Кільця 1 цікавим.
 
@@ -33,7 +33,7 @@
   `obstacles[]`, `chests[]`, `nests[]`, `initialNestCount`, `outposts[] ({x, y, radius, captureRadius, state})`, `sanctuary ({healPool, maxHealPool, domeBroken, wrathWarning, campTimer})`, `landmark`, `coreDrop`, `evac ({state: 'idle'|'active'|'complete', timer, totalTime, playerInZone, isActive})`, `isPurifierFieldActive()`
 - **Run end (`state.runEnd`):** `null` під час гри; інакше `{outcome: 'victory'|'death'|'abort', banked, lost, bonus, timeSec, kills, level, wave, nestsCleansed, nestsTotal}`. Ставиться через `endRun()` у `js/run.js`.
 - **Weapons (`state.weaponManager`):**
-  `slots[] ({name, isEvolution, cfg: {archetype, damage, ...}})`, `projectiles[]`, `mortarShells[]`, `zones[]`, `particles[]`
+  `slots[] ({name, isEvolution, cfg: {key, archetype, damage, ...}})`, `upgradeRanks {key: n}`, `consumedKeys Set`, `upgradeWeapon(key)`, `getRank(key)`, `projectiles[]`, `mortarShells[]`, `zones[]`, `particles[]`
 - **Effects / Loot (`state`):**
   `pickupManager.pickups[]`, `gibManager.gibs[]`, `shockwaves[]`
 
@@ -55,7 +55,8 @@
 - [x] **Стеля швидкості ворогів (v4.9).** `maxSpeedRatio` на тип (частка від `PLAYER.baseSpeed` 180): Sprout `0.95` (171), Stalker `0.85` (153), Warden `0.8`, Dasher `1.4` (252, повільніше за Cruise 261). Ескалація HP/урону без змін. Раніше Sprout обганяв гравця з 5-ї хвилі (2:40) і досягав 245.
 - [-] **Крива XP — залишено геометричну (×1.25).** Бот-симуляція (8–12 хв, бот не вмирає): після ~3 хв дохід ~50 XP/с (~30 кілів/с), рівень 30 приблизно на 7–9 хв. Адитивна крива з аудиту дала б рівень 100+ за 10 хв, тож рекомендація аудиту була хибною. Справжня проблема — **сплески**: 8–10 рівнів за 1–2 секунди, коли підбирається велика купа XP (вакуум гнізда, повернення до зони бою). Вирішувати через UX черги драфту / злиття XP, а не через криву.
 - [x] **Сплески рівнів (v4.9, перевірено в браузері).** Рівні нараховуються одразу, але вікна драфту відкриваються не частіше ніж раз на `DRAFT.minInterval` (`3с` ігрового часу). Накопичені показані біля XP-бару («▲ +N UPGRADES»). `player.addXP` повертає кількість рівнів (`js/draft.js`). Тест: 120 XP одразу → 9 драфтів з інтервалом ~3.6с замість 9 вікон поспіль.
-- [ ] Еволюції зберігають апгрейди; Flamer наводиться на ворогів.
+- [x] **Еволюції зберігають апгрейди (v4.10, перевірено в браузері).** Ранги апгрейдів рахуються на зброю (`weaponManager.upgradeRanks`); при еволюції сума рангів інгредієнтів застосовується до еволюції (Saw ×3 + Tesla ×2 → Volt Hurricane Mk6: 72 урону, 54 ланцюг, 4 леза). Еволюції мають власні картки апгрейду; картки поглинутих інгредієнтів і Blaster без Blaster більше не випадають. Статистика рангу — `WEAPON_UPGRADES` у `weapons/catalog.js`; ранг видно в арсеналі («Mk3»). Якщо доступні дві еволюції, пропонується випадкова (раніше — завжди перша).
+- [x] **Flamer наводиться на найближчу ціль** у межах `range × 1.2`, з поворотом `10 рад/с`; без цілі повертається до напряму руху (`weapons/targeting.js`).
 
 ### C. Відчуття гри
 - [ ] Web Audio SFX.

@@ -3,7 +3,7 @@
 import { CONFIG } from '../config.js';
 import { state, triggerHitStop, spawnShockwave } from '../state.js';
 import { Telemetry } from '../telemetry.js';
-import { WEAPON_ARCHETYPES, EVOLUTIONS, createRunWeaponConfigs } from './catalog.js';
+import { WEAPON_ARCHETYPES, EVOLUTIONS, WEAPON_UPGRADES, createRunWeaponConfigs, weaponKeyByName } from './catalog.js';
 import { GroundZone } from './projectiles.js';
 import { ProjectileWeapon, MortarWeapon, ChainWeapon } from './rangedArchetypes.js';
 import { OrbitalWeapon, ConeWeapon, AuraWeapon } from './meleeArchetypes.js';
@@ -13,6 +13,8 @@ export class WeaponManager {
     this.owner = owner;
     this.maxSlots = 6;
     this.runConfigs = createRunWeaponConfigs();
+    this.upgradeRanks = {};          // key → кількість апгрейдів цього забігу
+    this.consumedKeys = new Set();   // інгредієнти, поглинуті еволюцією (їх картки більше не пропонуються)
     this.slots = [this.createWeapon('blaster')];
     this.projectiles = [];
     this.mortarShells = [];
@@ -49,6 +51,29 @@ export class WeaponManager {
     return this.slots.some(w => w.name.toLowerCase().trim() === target);
   }
 
+  hasWeaponKey(key) {
+    return this.slots.some(w => w.cfg.key === key);
+  }
+
+  getRank(key) {
+    return this.upgradeRanks[key] || 0;
+  }
+
+  // Ранги, які еволюція забере з інгредієнтів
+  getCarriedRanks(evolutionKey) {
+    const evo = EVOLUTIONS[evolutionKey];
+    return evo ? evo.ingredients.reduce((sum, name) => sum + this.getRank(weaponKeyByName(name)), 0) : 0;
+  }
+
+  upgradeWeapon(key) {
+    const cfg = this.runConfigs[key];
+    const upgrade = WEAPON_UPGRADES[key];
+    if (!cfg || !upgrade) return false;
+    upgrade(cfg);
+    this.upgradeRanks[key] = this.getRank(key) + 1;
+    return true;
+  }
+
   addWeaponByKey(key) {
     if (this.slots.length >= this.maxSlots) return false;
     const weapon = this.createWeapon(key);
@@ -61,18 +86,24 @@ export class WeaponManager {
     const evo = EVOLUTIONS[evolutionKey];
     if (!evo || !evo.ingredients.every(name => this.hasWeapon(name))) return false;
 
-    const lowerIngredients = evo.ingredients.map(n => n.toLowerCase().trim());
-    this.slots = this.slots.filter(w => !lowerIngredients.includes(w.name.toLowerCase().trim()));
+    // Апгрейди інгредієнтів переходять в еволюцію: сума рангів → стільки ж рангів еволюції
+    const carried = this.getCarriedRanks(evolutionKey);
+    const ingredientKeys = evo.ingredients.map(weaponKeyByName);
+    this.slots = this.slots.filter(w => !ingredientKeys.includes(w.cfg.key));
+    for (const key of ingredientKeys) this.consumedKeys.add(key);
 
+    for (let i = 0; i < carried; i++) this.upgradeWeapon(evo.resultKey);
     const evolved = this.createWeapon(evo.resultKey);
     if (evolved) this.slots.push(evolved);
 
-    Telemetry.recordEvent('EVOLUTION', `WEAPON EVOLVED: ${evo.name}! Slot compressed.`);
+    Telemetry.recordEvent('EVOLUTION', `WEAPON EVOLVED: ${evo.name}! Carried ${carried} upgrades. Slot compressed.`);
     return true;
   }
 
   reset() {
     this.runConfigs = createRunWeaponConfigs();
+    this.upgradeRanks = {};
+    this.consumedKeys.clear();
     this.slots = [this.createWeapon('blaster')];
     this.projectiles.length = 0;
     this.mortarShells.length = 0;

@@ -1,6 +1,22 @@
 // js/weapons/meleeArchetypes.js — Архетипи: Orbital, Cone, Aura
 
 import { state } from '../state.js';
+import { findNearestTarget } from './targeting.js';
+
+const CONE_TURN_RATE = 10; // рад/с — швидкість повороту струменя Flamer
+
+function wrapAngle(a) {
+  while (a > Math.PI) a -= Math.PI * 2;
+  while (a < -Math.PI) a += Math.PI * 2;
+  return a;
+}
+
+// Плавний поворот кута a до b не більше ніж на maxStep радіан
+function turnToward(a, b, maxStep) {
+  const diff = wrapAngle(b - a);
+  if (Math.abs(diff) <= maxStep) return b;
+  return wrapAngle(a + Math.sign(diff) * maxStep);
+}
 
 function collectTargets(x, y, radius, fallbackList, out) {
   out.length = 0;
@@ -189,11 +205,18 @@ export class ConeWeapon {
     this.particles = [];
     this.spawnTimer = 0;
     this._targets = [];
+    this.aimAngle = owner.facingAngle;
   }
 
   update(dt, enemies) {
     this.spawnTimer += dt;
-    const baseAngle = this.owner.facingAngle;
+    const range = this.cfg.range * this.owner.growthScale;
+
+    // Автонаведення: струмінь повертається до найближчої цілі (раніше бив лише туди, куди йде робот)
+    const target = findNearestTarget(this.owner.x, this.owner.y, range * 1.2, enemies);
+    const desired = target ? Math.atan2(target.y - this.owner.y, target.x - this.owner.x) : this.owner.facingAngle;
+    this.aimAngle = turnToward(this.aimAngle, desired, CONE_TURN_RATE * dt);
+    const baseAngle = this.aimAngle;
 
     if (this.spawnTimer >= 0.03) {
       this.spawnTimer = 0;
@@ -216,7 +239,6 @@ export class ConeWeapon {
       if (p.life <= 0) this.particles.splice(i, 1);
     }
 
-    const range = this.cfg.range * this.owner.growthScale;
     const rangeSq = range * range;
     const halfSpread = this.cfg.spreadAngle / 2;
     const dmg = this.cfg.damage * (this.owner.godMode ? 15 : 1);
