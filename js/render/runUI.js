@@ -125,7 +125,7 @@ const OUTCOME_STYLE = {
 export function renderRunEndOverlay(ctx, canvas, runEnd, canLeave) {
   const style = OUTCOME_STYLE[runEnd.outcome] || OUTCOME_STYLE.death;
   const cx = canvas.width / 2, cy = canvas.height / 2;
-  const w = 480, h = 356, x = cx - w / 2, y = cy - h / 2;
+  const w = 480, h = 380, x = cx - w / 2, y = cy - h / 2;
 
   ctx.save();
   ctx.fillStyle = 'rgba(5, 7, 12, 0.82)';
@@ -152,7 +152,8 @@ export function renderRunEndOverlay(ctx, canvas, runEnd, canLeave) {
     ['SCRAP BANKED', runEnd.bonus ? `+${runEnd.banked} (incl. +${runEnd.bonus} evac bonus)` : `+${runEnd.banked}`],
   ];
   if (runEnd.outcome !== 'victory') rows.push(['SCRAP LOST', `${runEnd.lost}`]);
-  rows.push(['GROUND RECLAIMED', runEnd.terraform
+  rows.push(['BIOMASS', `+${Math.floor(runEnd.biomassGained)} (VAULT ${Math.floor(runEnd.biomassTotal)})`]);
+  rows.push(['RECLAIMED', runEnd.terraform
     .map(s => `${s.label} ${s.stage}/${s.maxStage}${s.grew > 0 ? ` (+${s.grew})` : ''}`)
     .join(' · ')]);
 
@@ -163,7 +164,7 @@ export function renderRunEndOverlay(ctx, canvas, runEnd, canLeave) {
     ctx.fillStyle = '#a0aec0';
     ctx.fillText(rows[i][0], x + 36, ry);
     ctx.textAlign = 'right';
-    ctx.fillStyle = rows[i][0] === 'SCRAP LOST' ? '#fc8181' : rows[i][0] === 'GROUND RECLAIMED' ? '#9ae6b4' : '#e2e8f0';
+    ctx.fillStyle = rows[i][0] === 'SCRAP LOST' ? '#fc8181' : rows[i][0] === 'RECLAIMED' || rows[i][0] === 'BIOMASS' ? '#9ae6b4' : '#e2e8f0';
     ctx.fillText(rows[i][1], x + w - 36, ry);
   }
 
@@ -201,12 +202,12 @@ export function renderTerraformToast(ctx, canvas, terraform) {
   ctx.restore();
 }
 
-const COUNTER_NOUN = { nestsCleansed: 'NESTS CLEANSED', purifierRestorations: 'PURIFIER RESTORATIONS' };
+const COUNTER_NOUN = { nestsCleansed: 'NESTS + BIOMASS', purifierRestorations: 'PURIFIER RESTORATIONS' };
 
 // Стан тераформування у Воркшопі: стадія ділянки і скільки до наступної
 export function renderReclamationStatus(ctx, canvas, terraform) {
   const cx = canvas.width / 2;
-  let y = canvas.height / 2 + 190;
+  let y = canvas.height / 2 + 172;
   ctx.save();
   ctx.textAlign = 'center';
   ctx.fillStyle = '#68d391';
@@ -217,10 +218,14 @@ export function renderReclamationStatus(ctx, canvas, terraform) {
     y += 18;
     const { value, next } = terraform.progressOf(site);
     const noun = COUNTER_NOUN[site.cfg.counter];
-    const tail = next === null ? 'FULLY RECLAIMED (RING 1 LIMIT)' : `NEXT AT ${next} ${noun} (NOW ${value})`;
+    const tail = next === null ? 'FULLY RECLAIMED (RING 1 LIMIT)' : `NEXT AT ${next} ${noun} (NOW ${Math.round(value * 10) / 10})`;
     ctx.fillStyle = site.stage >= 0 ? '#c6f6d5' : '#a0aec0';
     ctx.fillText(`${site.label}: STAGE ${site.stage + 1}/${site.maxStage + 1} — ${tail}`, cx, y);
   }
+  const hubCfg = terraform.sites[0].cfg;
+  y += 18;
+  ctx.fillStyle = '#9ae6b4';
+  ctx.fillText(`BIOMASS: ${Math.floor(MetaProgression.world.biomass)} (${hubCfg.biomassPerUnit} = 1 NEST FOR SANCTUARY GROWTH)`, cx, y);
   const pp = terraform.patchProgress();
   y += 18;
   ctx.fillStyle = pp.count > 0 ? '#c6f6d5' : '#a0aec0';

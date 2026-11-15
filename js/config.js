@@ -47,7 +47,8 @@ export const CONFIG = {
     sites: [
       // Хаб: росте лише трохи — від усіх очищених гнізд за всі забіги (основний ріст — дикі латки)
       { id: 'hub', label: 'SANCTUARY', anchor: 'hub', counter: 'nestsCleansed', seed: 1171,
-        thresholds: [0, 4, 10, 18, 30], radii: [260, 300, 340, 380, 420] },
+        thresholds: [0, 4, 10, 18, 30], radii: [260, 300, 340, 380, 420],
+        biomassPerUnit: 600 }, // 600 біомаси = 1 очищене гніздо для стадії Хаба (змінюється без міграції)
       // Пурифаєр: з'являється після першого відновлення, росте з кожним наступним
       { id: 'purifier', label: 'PURIFIER', anchor: 'landmark', counter: 'purifierRestorations', seed: 2393,
         thresholds: [1, 2, 4, 7], radii: [420, 520, 620, 720] },
@@ -245,6 +246,16 @@ export const CONFIG = {
     reclaimedBloodAlpha: 0.35, // кров на відновленій землі блідша
   },
 
+  // Зв'язок родючості з Хабом (js/hubLink.js): клітинки родючості, з'єднані з Хабом/відновленою землею,
+  // дають біомасу на повну; решта — зі зниженою ставкою (м'яке правило). Біомаса йде в сейв після забігу.
+  HUBLINK: {
+    fertThreshold: 4,        // мін. родючість клітинки, щоб вона була «живою» для зв'язку
+    gap: 1,                  // скільки порожніх клітинок можна перестрибнути (8-сусідство + розрив)
+    interval: 2,             // с гри між перерахунками зв'язності
+    disconnectedRate: 0.25,  // ставка біомаси для незв'язаної родючості
+    maxVeinCells: 1600,      // ліміт сегментів коренів
+  },
+
   // Рослини, що лікують (js/plants.js, js/render/pixiPlants.js): кущі (прохідні) і дрібні дерева (тверді),
   // обидва плодоносять. Лише в межах забігу.
   PLANTS: {
@@ -373,7 +384,7 @@ export const CONFIG = {
 };
 
 const DEFAULT_META_SAVE = {
-  version: 4,
+  version: 5,
   bankedTechScrap: 0,
   perks: {
     chassisArmor: 0,
@@ -386,7 +397,8 @@ const DEFAULT_META_SAVE = {
   world: {
     nestsCleansed: 0,
     purifierRestorations: 0,
-    patches: [] // дикі латки: { x, y, r, seed }
+    patches: [], // дикі латки: { x, y, r, seed }
+    biomass: 0   // накопичена біомаса з усіх забігів (годує ріст Хаба)
   }
 };
 
@@ -412,10 +424,11 @@ export function loadMetaProgression() {
     if (!raw) return JSON.parse(JSON.stringify(DEFAULT_META_SAVE));
     const parsed = JSON.parse(raw);
     // v2 → v3: додано world (лічильники тераформування), старі сейви починають з нуля
+    // v4 → v5: додано world.biomass (старі сейви починають з 0, Хаб не втрачає стадію)
     // v3 → v4: додано world.patches; бракуючі латки за вже очищені гнізда добудовує terraform.js
     const world = parsed.world || {};
     return {
-      version: 4,
+      version: 5,
       bankedTechScrap: (Number(parsed.bankedTechScrap) || 0) + refundRemovedTracksPerk(parsed),
       perks: {
         chassisArmor: Number(parsed.perks && parsed.perks.chassisArmor) || 0,
@@ -427,7 +440,8 @@ export function loadMetaProgression() {
       world: {
         nestsCleansed: Number(world.nestsCleansed) || 0,
         purifierRestorations: Number(world.purifierRestorations) || 0,
-        patches: sanitizePatches(world.patches)
+        patches: sanitizePatches(world.patches),
+        biomass: Math.max(0, Number(world.biomass) || 0)
       }
     };
   } catch (e) {
