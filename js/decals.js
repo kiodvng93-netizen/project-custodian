@@ -17,6 +17,8 @@ export class DecalChunk {
     this.ctx = this.canvas.getContext('2d');
     this.lastUsed = performance.now();
     this.needsTextureUpdate = false;
+    this.ageLeft = 0;     // скільки кроків старіння лишилось після останнього малювання
+    this.ageTimer = 0;
   }
 
   touch() {
@@ -84,7 +86,32 @@ export class DecalManager {
         drawCallback(chunk.ctx, localX, localY);
         chunk.ctx.restore();
         chunk.needsTextureUpdate = true;
+        chunk.ageLeft = CONFIG.GORE.ageSteps;
       }
+    }
+  }
+
+  // Старіння крові: кожні ageInterval с чанк із свіжою кров'ю злегка затемнюється й зеленіє/сіріє до кольору
+  // землі. source-atop фарбує лише вже намальоване (прозорі пікселі ґрунту не чіпає). Один чанк за виклик
+  // не більше ageChunksPerTick — перезаливка текстури лишається в межах бюджету.
+  update(dt) {
+    const G = CONFIG.GORE;
+    let budget = G.ageChunksPerTick;
+    for (const chunk of this.chunks.values()) {
+      if (chunk.ageLeft <= 0) continue;
+      chunk.ageTimer += dt;
+      if (chunk.ageTimer < G.ageInterval || budget <= 0) continue;
+      chunk.ageTimer = 0;
+      chunk.ageLeft--;
+      budget--;
+      const ctx = chunk.ctx;
+      ctx.save();
+      ctx.globalCompositeOperation = 'source-atop';
+      ctx.fillStyle = G.ageTint;
+      ctx.globalAlpha = G.ageStrength;
+      ctx.fillRect(0, 0, chunk.size, chunk.size);
+      ctx.restore();
+      chunk.needsTextureUpdate = true;
     }
   }
 

@@ -4,6 +4,7 @@ import { Graphics, Sprite, TilingSprite } from 'pixi.js';
 import { CONFIG } from '../config.js';
 import { SpritePool } from './pixiCore.js';
 import { PixiSpriteAtlas } from './pixiSpriteAtlas.js';
+import { getGroundTileCanvas } from './groundTile.js';
 
 export class PixiWorldRenderer {
   constructor(pixi, atlas = null) {
@@ -12,7 +13,6 @@ export class PixiWorldRenderer {
     this.spriteManager = null;
 
     this.bgTile = null;
-    this.bgUsingSprite = false;
     this.ringGraphic = null;
     this.hubGraphic = null;
     this.hubSprite = null;
@@ -29,12 +29,8 @@ export class PixiWorldRenderer {
   }
 
   initStaticBackground() {
-    this.gridTex = this.pixi.bakeTexture('world_grid_64', (g) => {
-      const s = CONFIG.WORLD.tileGridSize || 64;
-      g.rect(0, 0, s, s).fill(0x12151c);
-      g.moveTo(0, 0).lineTo(s, 0).stroke({ width: 1, color: 0x2d3748, alpha: 0.4 });
-      g.moveTo(0, 0).lineTo(0, s).stroke({ width: 1, color: 0x2d3748, alpha: 0.4 });
-    });
+    // Процедурний тайл пустки (groundTile.js) замість PNG з різкими тріщинами
+    this.gridTex = this.pixi.getCanvasTexture('ground_tile', getGroundTileCanvas());
 
     this.bgTile = new TilingSprite({ texture: this.gridTex, width: 2048, height: 2048 });
     this.pixi.bgLayer.addChild(this.bgTile);
@@ -55,14 +51,6 @@ export class PixiWorldRenderer {
 
   syncBackground(camera, viewW, viewH, spriteManager) {
     this.spriteManager = spriteManager;
-
-    if (!this.bgUsingSprite && spriteManager && spriteManager.has('tile_wasteland')) {
-      const tex = this.pixi.getCanvasTexture('tile_wasteland', spriteManager.getSource('tile_wasteland'));
-      if (tex) {
-        this.bgTile.texture = tex;
-        this.bgUsingSprite = true;
-      }
-    }
 
     if (!this.hubSprite && spriteManager && spriteManager.has('tile_hub')) {
       const hubTex = this.pixi.getCanvasTexture('tile_hub', spriteManager.getSource('tile_hub'));

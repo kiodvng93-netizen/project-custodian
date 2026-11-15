@@ -1,6 +1,7 @@
 // js/render/environment.js — Отрисовка окружения, процедурной сетки и Хаба
 
 import { CONFIG } from '../config.js';
+import { getGroundTileCanvas } from './groundTile.js';
 
 export function renderWorldGrid(ctx, canvas, camera, spriteManager) {
   const viewLeft = camera.x - canvas.width / 2 - 100;
@@ -10,16 +11,13 @@ export function renderWorldGrid(ctx, canvas, camera, spriteManager) {
   const w = viewRight - viewLeft;
   const h = viewBottom - viewTop;
 
+  // Процедурний тайл пустки замість PNG
   let drawn = false;
-  if (spriteManager) {
-    try {
-      const pattern = spriteManager.getPattern(ctx, 'tile_wasteland');
-      if (pattern) {
-        ctx.fillStyle = pattern;
-        ctx.fillRect(viewLeft, viewTop, w, h);
-        drawn = true;
-      }
-    } catch (e) {}
+  const pattern = ctx.createPattern(getGroundTileCanvas(), 'repeat');
+  if (pattern) {
+    ctx.fillStyle = pattern;
+    ctx.fillRect(viewLeft, viewTop, w, h);
+    drawn = true;
   }
 
   if (!drawn) {

@@ -378,6 +378,7 @@ function gameLoop(currentTimestamp) {
     if (state.gibManager) state.gibManager.update(dt, state.decalManager);
     state.corpseManager.update(dt, state.player);
     updateRobotTracks(state.decalManager, state.player, dt);
+    state.decalManager.update(dt);
     for (let i = state.shockwaves.length - 1; i >= 0; i--) { state.shockwaves[i].update(dt); if (!state.shockwaves[i].alive) state.shockwaves.splice(i, 1); }
     updateFlashes(dt);
     for (let i = state.pickupManager.pickups.length - 1; i >= 0; i--) {

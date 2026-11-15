@@ -39,7 +39,7 @@ export function paintSplatter(decals, x, y, { blood = 'corrupt', radius = 18, di
   const pool = [];
   for (let i = 0, n = 4 + Math.floor(Math.random() * 3); i < n; i++) {
     const a = Math.random() * Math.PI * 2, d = rand(0, R * 0.45);
-    pool.push([Math.cos(a) * d + Math.cos(dirA) * R * 0.3, Math.sin(a) * d + Math.sin(dirA) * R * 0.3, rand(0.45, 0.75) * R]);
+    pool.push([Math.cos(a) * d + Math.cos(dirA) * R * 0.3, Math.sin(a) * d + Math.sin(dirA) * R * 0.3, rand(0.45, 0.75) * R * CONFIG.GORE.poolMult]);
   }
   const streaks = [];
   for (let i = 0, n = hasDir ? 4 + Math.floor(Math.random() * 4) : 2; i < n; i++) {
@@ -48,12 +48,12 @@ export function paintSplatter(decals, x, y, { blood = 'corrupt', radius = 18, di
     streaks.push([Math.cos(a) * start, Math.sin(a) * start, a, R * rand(1.5, 3.9), R * rand(0.16, 0.3)]);
   }
   const drops = [];
-  const dropCount = Math.round(16 + 10 * Math.min(2, power));
+  const dropCount = Math.round((16 + 10 * Math.min(2, power)) * CONFIG.GORE.dropMult);
   const spread = hasDir ? 0.7 : Math.PI;
   for (let i = 0; i < dropCount; i++) {
     const a = dirA + rand(-spread, spread) * (Math.random() < 0.7 ? 0.6 : 1);
     const d = R * rand(0.8, hasDir ? 4.5 : 2.7);
-    drops.push([Math.cos(a) * d, Math.sin(a) * d, Math.max(1, R * rand(0.05, 0.16)), rand(0.55, 0.9), Math.random() < 0.35]);
+    drops.push([Math.cos(a) * d, Math.sin(a) * d, Math.max(1.5, R * rand(0.05, 0.16) * CONFIG.GORE.dropSizeMult), rand(0.55, 0.9), Math.random() < 0.35]);
   }
 
   registerFreshPool(x + Math.cos(dirA) * R * 0.3, y + Math.sin(dirA) * R * 0.3, R * 1.1, blood);
@@ -92,9 +92,9 @@ export function paintSpurt(decals, x, y, { blood = 'corrupt', radius = 10, dirX 
   const R = radius * CONFIG.GORE.splatterScale;
   const dirA = (dirX || dirY) ? Math.atan2(dirY, dirX) : Math.random() * Math.PI * 2;
   const drops = [];
-  for (let i = 0, n = 4 + Math.floor(Math.random() * 4); i < n; i++) {
+  for (let i = 0, n = 2 + Math.floor(Math.random() * 2); i < n; i++) {
     const a = dirA + rand(-0.5, 0.5), d = R * rand(0.6, 2.8);
-    drops.push([Math.cos(a) * d, Math.sin(a) * d, Math.max(1, R * rand(0.07, 0.18)), rand(0.55, 0.85)]);
+    drops.push([Math.cos(a) * d, Math.sin(a) * d, Math.max(1.5, R * rand(0.07, 0.18) * CONFIG.GORE.dropSizeMult), rand(0.55, 0.85)]);
   }
   const sA = dirA + rand(-0.2, 0.2), sLen = R * rand(1.3, 2.4), sW = R * rand(0.18, 0.28);
   const seed = newSeed();

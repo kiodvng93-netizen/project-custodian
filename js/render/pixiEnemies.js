@@ -2,6 +2,7 @@
 // анімація за станом (enemyAnim.js), тіні, білий спалах удару, контури еліти й Титанів.
 
 import { enemyPose } from './enemyAnim.js';
+import { ENEMY_VISUAL_BOOST as VB } from '../corpses.js';
 
 // Розмір кадру ряду 0 (ширина клітинки) = радіус × це
 const SCALE = { warden: 3.2, stalker: 2.9, sprout: 3.0, dasher: 3.0 };
@@ -37,7 +38,7 @@ export function syncEnemies(r, enemies, spriteManager, vl, vr, vt, vb, nowSec) {
 
     const ref = atlas.getSliced(spriteManager, key, 0, 0).frame.width;
     const boost = (e.typeKey === 'warden' && e.isCharging) ? 1.12 : 1.0;
-    const k = (e.radius * (SCALE[e.typeKey] || 3) * boost * (e.isTitan ? TITAN_SCALE : 1)) / ref;
+    const k = (e.radius * (SCALE[e.typeKey] || 3) * VB * boost * (e.isTitan ? TITAN_SCALE : 1)) / ref;
     const feetY = e.y + e.radius * FEET;
     const lift = (pose.hover + pose.bob) * e.radius;
 
@@ -45,8 +46,8 @@ export function syncEnemies(r, enemies, spriteManager, vl, vr, vt, vb, nowSec) {
     const sh = shadowPool.acquire(shadowTex);
     const air = Math.max(0, -lift) / e.radius;
     sh.position.set(e.x, feetY - e.radius * 0.12);
-    sh.width = e.radius * (e.isTitan ? 2.3 : 1.6) * (1 - air * 0.35);
-    sh.height = e.radius * (e.isTitan ? 0.85 : 0.6) * (1 - air * 0.35);
+    sh.width = e.radius * VB * (e.isTitan ? 2.3 : 1.6) * (1 - air * 0.35);
+    sh.height = e.radius * VB * (e.isTitan ? 0.85 : 0.6) * (1 - air * 0.35);
     sh.alpha = (e.isTitan ? 1 : 0.8) * (1 - air * 0.3);
 
     if (e.isTitan) {
@@ -54,16 +55,16 @@ export function syncEnemies(r, enemies, spriteManager, vl, vr, vt, vb, nowSec) {
       const pulse = 0.5 + 0.5 * Math.sin(nowSec * 5 + e.animSeed);
       const aura = shadowPool.acquire(glowTex);
       aura.position.set(e.x, feetY - e.radius * 0.2);
-      aura.width = e.radius * (4.2 + pulse * 0.8);
-      aura.height = e.radius * (2.0 + pulse * 0.4);
+      aura.width = e.radius * VB * (4.2 + pulse * 0.8);
+      aura.height = e.radius * VB * (2.0 + pulse * 0.4);
       aura.tint = 0xff0044;
       aura.alpha = 0.45 + pulse * 0.3;
       aura.blendMode = 'add';
     } else if (e.isElite) {
       const ring = shadowPool.acquire(pixi.getTexture('ring'));
       ring.position.set(e.x, feetY - e.radius * 0.15);
-      ring.width = e.radius * 2.4;
-      ring.height = e.radius * 1.0;
+      ring.width = e.radius * VB * 2.4;
+      ring.height = e.radius * VB;
       ring.tint = 0xf6e05e;
       ring.alpha = 0.8;
     }
@@ -101,7 +102,7 @@ export function syncEnemies(r, enemies, spriteManager, vl, vr, vt, vb, nowSec) {
     }
 
     if (e.health < e.maxHealth && !e.invulnerable) {
-      const barW = e.radius * 2;
+      const barW = e.radius * VB * 2;
       const by = feetY + lift - tex.frame.height * k * 0.92 - 4;
       const bg = entityPool.acquire(whiteTex);
       bg.position.set(e.x, by);

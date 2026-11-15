@@ -59,7 +59,7 @@ export function brokenStreak(ctx, x, y, angle, len, width, rng, dark, base, alph
     vel += (rng() - 0.5) * 0.18;            // плавне блукання вбік, а не тремтіння
     wobble += vel * width * 0.35;
     if (gapLeft > 0) { gapLeft--; continue; }
-    if (t > 0.3 && rng() < 0.03 + t * 0.07) { gapLeft = 2 + Math.floor(rng() * 4); continue; }
+    if (t > 0.3 && rng() < 0.008 + t * 0.03) { gapLeft = 2 + Math.floor(rng() * 4); continue; }
     const d = t * len;
     // перетяжки: стрічка то товщає (згусток), то тоншає
     const pinch = 0.6 + 0.55 * Math.abs(Math.sin(t * 9 + phase0));
@@ -79,7 +79,7 @@ export function brokenStreak(ctx, x, y, angle, len, width, rng, dark, base, alph
   const ex = x + ca * len * (1.06 + rng() * 0.12) + nx * wobble, ey = y + sa * len * (1.06 + rng() * 0.12) + ny * wobble;
   ctx.fillStyle = rgba(dark, alpha * 0.9);
   lumpyBlob(ctx, ex, ey, width * (0.3 + rng() * 0.25), rng, 0.45);
-  for (let k = 0, m = 1 + Math.floor(rng() * 3); k < m; k++) {
+  for (let k = 0, m = Math.floor(rng() * 2); k < m; k++) {
     const a = angle + (rng() - 0.5) * 1.2, d = width * (0.8 + rng() * 1.6);
     ctx.fillStyle = rgba(rng() < 0.5 ? dark : base, alpha * 0.8);
     blob(ctx, ex + Math.cos(a) * d, ey + Math.sin(a) * d, Math.max(0.8, width * (0.1 + rng() * 0.15)));
@@ -129,7 +129,7 @@ export function smallSplat(ctx, x, y, r, angle, rng, pal, power = 1) {
   lumpyBlob(ctx, x, y, r, rng, 0.55, 1.25, angle);
   ctx.fillStyle = rgba(pal.base, 0.82);
   lumpyBlob(ctx, x + Math.cos(angle) * r * 0.15, y + Math.sin(angle) * r * 0.15, r * 0.62, rng, 0.5, 1.2, angle);
-  const drops = Math.round(3 + rng() * 4 * power);
+  const drops = Math.round(1 + rng() * 2.5 * power);
   for (let i = 0; i < drops; i++) {
     const a = angle + (rng() - 0.5) * 2.2, d = r * (1.1 + rng() * 1.6 * power);
     ctx.fillStyle = rgba(rng() < 0.4 ? pal.dark : pal.base, 0.6 + rng() * 0.3);
