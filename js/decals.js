@@ -2,6 +2,7 @@
 
 import { CONFIG } from './config.js';
 import { paintSplatter } from './gore.js';
+import { hubClearRadius } from './hubClear.js';
 
 export class DecalChunk {
   constructor(cx, cy, size = 512) {
@@ -76,6 +77,12 @@ export class DecalManager {
     const minCy = Math.floor((worldY - radius) / this.chunkSize);
     const maxCy = Math.floor((worldY + radius) / this.chunkSize);
 
+    // Зона Хаба: якщо мазок повністю всередині — не малюємо; якщо перетинає край — обрізаємо колом
+    const hubR = hubClearRadius();
+    const dHub = Math.hypot(worldX, worldY);
+    if (dHub + radius < hubR) return;
+    const clipHub = dHub - radius < hubR;
+
     for (let cx = minCx; cx <= maxCx; cx++) {
       for (let cy = minCy; cy <= maxCy; cy++) {
         const chunk = this.getOrCreateChunk(cx, cy);
@@ -83,6 +90,13 @@ export class DecalManager {
         const localY = worldY - chunk.worldY;
 
         chunk.ctx.save();
+        if (clipHub) {
+          // evenodd: прямокутник чанка мінус коло Хаба = дозволена область малювання
+          chunk.ctx.beginPath();
+          chunk.ctx.rect(0, 0, chunk.size, chunk.size);
+          chunk.ctx.arc(-chunk.worldX, -chunk.worldY, hubR, 0, Math.PI * 2);
+          chunk.ctx.clip('evenodd');
+        }
         drawCallback(chunk.ctx, localX, localY);
         chunk.ctx.restore();
         chunk.needsTextureUpdate = true;

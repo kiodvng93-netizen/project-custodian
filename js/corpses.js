@@ -7,6 +7,7 @@ import { CONFIG } from './config.js';
 import { state } from './state.js';
 import { BLOOD, bloodFor, paintSmear, paintGibSplat } from './gore.js';
 import { registerFreshPool } from './goreTracks.js';
+import { inHubClear } from './hubClear.js';
 
 // Візуальне збільшення ворогів (лише малюнок; радіус/хітбокс не змінюється)
 export const ENEMY_VISUAL_BOOST = 1.3;
@@ -59,6 +60,8 @@ export class CorpseManager {
 
   spawn(enemy, dirX = 0, dirY = 0, power = 1) {
     if (enemy.isTitan) return;
+    // У зоні Хаба тіло не лишається взагалі
+    if (inHubClear(enemy.x, enemy.y, enemy.radius)) return;
     const c = CONFIG.CORPSES;
     // Ліміт «живих» (фізичних) тіл: найстаріше одразу вростає в землю
     if (this.corpses.length >= c.maxActive) this.bake(this.corpses.shift());
@@ -115,6 +118,8 @@ export class CorpseManager {
     for (let i = this.corpses.length - 1; i >= 0; i--) {
       const b = this.corpses[i];
       b.age += dt;
+      // тіло, відкинуте ударом у зону Хаба, зникає без запікання
+      if (inHubClear(b.x, b.y)) { this.corpses.splice(i, 1); continue; }
       if (b.crushed) {
         b.crushT += dt / c.crushTime;
         if (b.crushT >= 1) { this.bake(b); this.corpses.splice(i, 1); }
