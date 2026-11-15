@@ -115,6 +115,7 @@ export class Enemy {
     const power = 1 + overkill * g.overkillBonus + (this.isElite ? g.eliteSplatterBonus : 0) + (this.typeKey === 'warden' ? 0.8 : 0);
     const blood = bloodFor(this);
     paintSplatter(state.decalManager, this.x, this.y, { blood, radius: this.radius * g.deathRadiusMult, dirX: dx, dirY: dy, power });
+    if (state.fertility) state.fertility.addDeath(this);
     if (state.corpseManager) state.corpseManager.spawn(this, dx, dy, power);
     if (this.typeKey === 'warden' && state.decalManager) {
       state.decalManager.addSplatter(this.x, this.y, { type: 'oil', radius: 40 });

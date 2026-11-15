@@ -1,6 +1,7 @@
 // js/decals.js — Чанкова система декалів (сліди слизу, олії, опіків) (ES Module)
 
 import { CONFIG } from './config.js';
+import { state } from './state.js';
 import { paintSplatter } from './gore.js';
 import { hubClearRadius } from './hubClear.js';
 
@@ -71,7 +72,8 @@ export class DecalManager {
     return chunk;
   }
 
-  paintOnWorld(worldX, worldY, radius, drawCallback) {
+  // opts.plain — мазок без авто-блідості на відновленій землі (тіла самі керують прозорістю)
+  paintOnWorld(worldX, worldY, radius, drawCallback, opts = null) {
     const minCx = Math.floor((worldX - radius) / this.chunkSize);
     const maxCx = Math.floor((worldX + radius) / this.chunkSize);
     const minCy = Math.floor((worldY - radius) / this.chunkSize);
@@ -82,6 +84,9 @@ export class DecalManager {
     const dHub = Math.hypot(worldX, worldY);
     if (dHub + radius < hubR) return;
     const clipHub = dHub - radius < hubR;
+    // Кров і сліди на відновленій землі блідіші (рішення в момент малювання)
+    const faint = !(opts && opts.plain) && state.worldManager.terraform.isReclaimed(worldX, worldY)
+      ? CONFIG.FERTILITY.reclaimedBloodAlpha : 1;
 
     for (let cx = minCx; cx <= maxCx; cx++) {
       for (let cy = minCy; cy <= maxCy; cy++) {
@@ -97,6 +102,7 @@ export class DecalManager {
           chunk.ctx.arc(-chunk.worldX, -chunk.worldY, hubR, 0, Math.PI * 2);
           chunk.ctx.clip('evenodd');
         }
+        if (faint < 1) chunk.ctx.globalAlpha = faint;
         drawCallback(chunk.ctx, localX, localY);
         chunk.ctx.restore();
         chunk.needsTextureUpdate = true;

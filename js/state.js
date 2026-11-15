@@ -50,6 +50,8 @@ export const state = {
   decalManager: null,
   gibManager: null,
   corpseManager: null,
+  groundCover: null,   // чанки покриву землі (js/groundCover.js)
+  fertility: null,     // родючість забігу: state.fertility.at(x, y) (js/fertility.js)
   spriteManager: null,
 
   shockwaves: [],
