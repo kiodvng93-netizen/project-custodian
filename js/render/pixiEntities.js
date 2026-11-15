@@ -5,7 +5,7 @@ import { PixiSpriteAtlas } from './pixiSpriteAtlas.js';
 import { syncEnemies } from './pixiEnemies.js';
 
 // Робот: піксель листа → світ (≈ 48 px заввишки при growthScale 1); ноги на player.y + ROBOT_FEET
-const ROBOT_K = 0.21;
+const ROBOT_K = 0.19;  // було 0.21: вороги виросли на 30%, робот трохи менший (хітбокс не змінено)
 const ROBOT_FEET = 19;
 
 export class PixiEntitiesRenderer {
@@ -73,6 +73,16 @@ export class PixiEntitiesRenderer {
     const whiteTex = this.pixi.getTexture('white');
     const gScale = player.growthScale || 1;
 
+    // М'яке блакитне світло навколо робота (від антени): він найяскравіший на екрані
+    const pulse = 0.5 + 0.5 * Math.sin(nowSec * 3);
+    const halo = this.shadowPool.acquire(this.pixi.getTexture('glow'));
+    halo.position.set(player.x, player.y + player.radius * 0.1);
+    halo.width = player.radius * (9 + pulse * 0.8) * gScale;
+    halo.height = player.radius * (7.5 + pulse * 0.6) * gScale;
+    halo.tint = 0x5fd8ff;
+    halo.alpha = 0.42 + pulse * 0.08;
+    halo.blendMode = 'add';
+
     const sh = this.shadowPool.acquire(shadowTex);
     sh.position.set(player.x, player.y + player.radius * 0.72);
     sh.width = player.radius * 2.0;
@@ -129,6 +139,17 @@ export class PixiEntitiesRenderer {
       s.scale.set(k * frame.flip, k);
       s.alpha = blinkAlpha;
       s.zIndex = player.y;
+      // Тонкий блакитний обвід позаду — відділяє робота від натовпу
+      const rimSil = this.atlas.getSilhouette(spriteManager, 'robot', frame.row, frame.col);
+      if (rimSil) {
+        const rim = this.entityPool.acquire(rimSil);
+        rim.anchor.set(0.5, 1);
+        rim.position.copyFrom(s.position);
+        rim.scale.set(s.scale.x * 1.1, s.scale.y * 1.1);
+        rim.tint = 0x7fe6ff;
+        rim.alpha = 0.55 * blinkAlpha;
+        rim.zIndex = player.y - 0.01;
+      }
       // Спалах отриманого удару: червоно-білий силует поверх
       if (player.hurtFlash > 0) {
         const sil = this.atlas.getSilhouette(spriteManager, 'robot', frame.row, frame.col);
