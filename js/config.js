@@ -81,6 +81,7 @@ export const CONFIG = {
 
   HUB: {
     radius: 180,
+    clearMargin: 40,       // запас навколо Хаба/його ділянки, де не лишається кров, тіла й сліди
     defenseRange: 255,
     healRate: 14,
     maxHealPool: 220,
