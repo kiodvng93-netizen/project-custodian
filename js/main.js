@@ -8,6 +8,9 @@ import { GibManager } from './gibs.js';
 import { CorpseManager } from './corpses.js';
 import { GroundCover } from './groundCover.js';
 import { Fertility } from './fertility.js';
+import { HubLink } from './hubLink.js';
+import { PixiRootsRenderer } from './render/pixiRoots.js';
+import { renderBiomassHUD } from './render/biomassUI.js';
 import { PlantManager } from './plants.js';
 import { updateRobotTracks, resetGore } from './goreTracks.js';
 import { SpriteManager } from './sprites.js';
@@ -53,6 +56,7 @@ let pixiWorld = null;
 let pixiTerraform = null;
 let pixiEntities = null;
 let pixiPlants = null;
+let pixiRoots = null;
 let pixiWeapons = null;
 
 const camCfg = CONFIG.CAMERA;
@@ -89,6 +93,7 @@ state.enemyManager = new EnemyManager();
 state.worldManager = new WorldManager();
 state.groundCover = new GroundCover();
 state.fertility = new Fertility(state.groundCover);
+state.hubLink = new HubLink(state.fertility);
 state.plants = new PlantManager();
 
 setRunRestartHandler(() => {
@@ -99,6 +104,7 @@ setRunRestartHandler(() => {
   state.corpseManager.clear();
   state.groundCover.clear();
   state.fertility = new Fertility(state.groundCover);
+  state.hubLink = new HubLink(state.fertility);
   state.plants = new PlantManager();
   resetGore();
 
@@ -286,6 +292,7 @@ function renderFrame() {
     pixi.updateCamera(camera, canvas.width, canvas.height);
     pixiWorld.syncBackground(camera, canvas.width, canvas.height, state.spriteManager);
     pixiTerraform.sync(state.worldManager.terraform);
+    pixiRoots.sync(state.hubLink, state.worldManager.terraform, nowSec);
     pixiWorld.syncCover(state.groundCover, camera, canvas.width, canvas.height);
     pixiWorld.syncDecals(state.decalManager, camera, canvas.width, canvas.height);
     pixiWorld.syncStructures(state.worldManager, camera, canvas.width, canvas.height, nowSec);
@@ -355,6 +362,7 @@ function renderFrame() {
   ctx.fillText(`EXPEDITION SCRAP: ${Telemetry.metrics.resourcesCollected.techScrap}`, 16, 28);
   ctx.fillStyle = '#ecc94b';
   ctx.fillText(`SANCTUARY VAULT: ${MetaProgression.bankedTechScrap} SCRAP`, 16, 46);
+  renderBiomassHUD(ctx, state);
   renderHiveAlertHUD(ctx, canvas, state);
   if (state.player.godMode) {
     ctx.fillStyle = '#ffd700'; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'left';
@@ -393,6 +401,7 @@ function gameLoop(currentTimestamp) {
     updateRobotTracks(state.decalManager, state.player, dt);
     state.decalManager.update(dt);
     state.fertility.update(dt);
+    state.hubLink.update(dt);
     state.plants.update(dt, state.player);
     for (let i = state.shockwaves.length - 1; i >= 0; i--) { state.shockwaves[i].update(dt); if (!state.shockwaves[i].alive) state.shockwaves.splice(i, 1); }
     updateFlashes(dt);
@@ -416,6 +425,8 @@ function gameLoop(currentTimestamp) {
     await pixi.init(document.getElementById('gameContainer'));
     pixiWorld = new PixiWorldRenderer(pixi);
     pixiTerraform = new PixiTerraformRenderer(pixi);
+    pixiRoots = new PixiRootsRenderer(pixi);
+    state.rootsStats = pixiRoots.stats; // для виміру вартості перебудови коренів (dev)
     pixiEntities = new PixiEntitiesRenderer(pixi);
     pixiPlants = new PixiPlantsRenderer(pixi);
     pixiWeapons = new PixiWeaponsRenderer(pixi);

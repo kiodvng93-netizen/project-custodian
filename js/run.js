@@ -2,6 +2,7 @@
 
 import { state, requestRunRestart } from './state.js';
 import { Telemetry } from './telemetry.js';
+import { MetaProgression } from './config.js';
 
 const INPUT_LOCK_MS = 900; // щоб затиснутий Space/E не пропустив екран підсумку
 
@@ -9,6 +10,10 @@ const INPUT_LOCK_MS = 900; // щоб затиснутий Space/E не проп�
 export function endRun(outcome, { banked = 0, lost = 0, bonus = 0 } = {}) {
   if (state.runEnd) return;
   const wm = state.worldManager;
+  // Біомаса йде в сейв при будь-якому результаті (і смерть залишає слід у світі)
+  state.hubLink.recompute();
+  const biomassGained = Math.round(state.hubLink.biomass * 10) / 10;
+  wm.terraform.addBiomass(biomassGained);
   state.runEnd = {
     outcome,
     banked,
@@ -20,6 +25,8 @@ export function endRun(outcome, { banked = 0, lost = 0, bonus = 0 } = {}) {
     wave: state.enemyManager.waveNumber,
     nestsCleansed: wm.initialNestCount - wm.nests.length,
     nestsTotal: wm.initialNestCount,
+    biomassGained,
+    biomassTotal: MetaProgression.world.biomass,
     terraform: wm.terraform.summary(),
     shownAt: performance.now(),
   };

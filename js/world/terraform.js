@@ -8,8 +8,14 @@ import { Telemetry } from '../telemetry.js';
 import { earnedPatchCount, placePatchNear, placePatchAnywhere } from './terraformPatches.js';
 
 // Стадія = індекс останнього пройденого порогу; -1 = ділянка ще не відновлена
+// Значення лічильника ділянки; Хаб додатково росте від біомаси (biomassPerUnit біомаси = 1 гніздо)
+export function siteValue(siteCfg) {
+  const value = MetaProgression.world[siteCfg.counter] || 0;
+  return siteCfg.biomassPerUnit ? value + (MetaProgression.world.biomass || 0) / siteCfg.biomassPerUnit : value;
+}
+
 function stageFor(siteCfg) {
-  const value = MetaProgression.world[siteCfg.counter];
+  const value = siteValue(siteCfg);
   let stage = -1;
   for (let i = 0; i < siteCfg.thresholds.length; i++) {
     if (value >= siteCfg.thresholds[i]) stage = i;
@@ -104,6 +110,11 @@ export class TerraformSites {
 
   // Чи точка на відновленій землі (pad — додатковий відступ від краю)
   isReclaimed(x, y, pad = 0) {
+    return this.areaIndexAt(x, y, pad) >= 0;
+  }
+
+  // Індекс першої ділянки в areas, що накриває точку (з відступом pad), або -1
+  areaIndexAt(x, y, pad = 0) {
     for (let i = 0; i < this.areas.length; i++) {
       const s = this.areas[i];
       if (s.radius <= 0) continue;
@@ -112,9 +123,9 @@ export class TerraformSites {
       const outer = s.radius * EDGE_MAX + pad;
       if (dSq >= outer * outer) continue; // дешеве відсікання до atan2/sin
       const r = s.radius * s.edge(Math.atan2(dy, dx)) + pad;
-      if (dSq < r * r) return true;
+      if (dSq < r * r) return i;
     }
-    return false;
+    return -1;
   }
 
   enemySpeedMultAt(x, y) {
@@ -193,10 +204,23 @@ export class TerraformSites {
     Telemetry.recordEvent('TERRAFORM', `${site.label} reclaimed to stage ${stage + 1}`);
   }
 
+  // Біомаса забігу назавжди: зберігаємо й, якщо Хаб пройшов поріг, розростаємо його
+  addBiomass(amount) {
+    if (!(amount > 0)) return;
+    MetaProgression.world.biomass = Math.round(((MetaProgression.world.biomass || 0) + amount) * 10) / 10;
+    saveMetaProgression();
+    for (let i = 0; i < this.sites.length; i++) {
+      const site = this.sites[i];
+      if (!site.cfg.biomassPerUnit) continue;
+      const next = stageFor(site.cfg);
+      if (next > site.stage) this.growSite(site, next);
+    }
+  }
+
   // Наступний поріг для підказок (Workshop, підсумок забігу)
   progressOf(site) {
     const t = site.cfg.thresholds;
-    const value = MetaProgression.world[site.cfg.counter];
+    const value = siteValue(site.cfg);
     const next = site.stage + 1 < t.length ? t[site.stage + 1] : null;
     return { value, next };
   }
