@@ -67,19 +67,30 @@ export class EnemyManager {
     this.enemies.push(new Enemy(pos.x, pos.y, 'warden', 1));
   }
 
+  // Тривалості фаз поточної хвилі: рано ebb і breather короткі, далі ростуть
+  wavePhaseDurations() {
+    const w = CONFIG.ENEMIES.WAVE;
+    const idx = this.waveNumber - 1;
+    const ebb = w.ebbByWave[Math.min(idx, w.ebbByWave.length - 1)];
+    const breather = w.breatherByWave[Math.min(idx, w.breatherByWave.length - 1)];
+    return { ebb, cycle: w.surgeDuration + ebb + breather };
+  }
+
   updateWaveCycle(dt, player, canvasWidth, canvasHeight) {
     const waveCfg = CONFIG.ENEMIES.WAVE;
     this.waveTimer += dt;
 
-    if (this.waveTimer >= waveCfg.cycleDuration) {
-      this.waveTimer -= waveCfg.cycleDuration;
+    let durations = this.wavePhaseDurations();
+    if (this.waveTimer >= durations.cycle) {
+      this.waveTimer -= durations.cycle;
       this.waveNumber++;
       this.ambushTriggeredInWave = false;
       Telemetry.recordEvent('WAVE', `Wave ${this.waveNumber} incoming!`);
+      durations = this.wavePhaseDurations();
     }
 
     const surgeEnd = waveCfg.surgeDuration;
-    const ebbEnd = surgeEnd + waveCfg.ebbDuration;
+    const ebbEnd = surgeEnd + durations.ebb;
 
     if (this.waveTimer < surgeEnd) {
       this.wavePhase = 'surge';
@@ -92,15 +103,15 @@ export class EnemyManager {
       }
     } else if (this.waveTimer < ebbEnd) {
       this.wavePhase = 'ebb';
-      this.waveIntensity = 0.87 * Math.cos(((this.waveTimer - surgeEnd) / waveCfg.ebbDuration) * Math.PI * 0.5);
+      this.waveIntensity = 0.87 * Math.cos(((this.waveTimer - surgeEnd) / durations.ebb) * Math.PI * 0.5);
       this.breatherTimeLeft = 0;
     } else {
       if (this.wavePhase !== 'breather') {
-        Telemetry.recordEvent('WAVE', `Breather window (${Math.round(waveCfg.cycleDuration - ebbEnd)}s)`);
+        Telemetry.recordEvent('WAVE', `Breather window (${Math.round(durations.cycle - ebbEnd)}s)`);
       }
       this.wavePhase = 'breather';
       this.waveIntensity = 0;
-      this.breatherTimeLeft = Math.max(0, waveCfg.cycleDuration - this.waveTimer);
+      this.breatherTimeLeft = Math.max(0, durations.cycle - this.waveTimer);
     }
   }
 

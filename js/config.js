@@ -28,12 +28,26 @@ export const CONFIG = {
   // Повне озеленення Кільця — не зараз (майбутнє/DLC): нові ділянки = нові записи в sites.
   TERRAFORM: {
     enemySpeedMult: 0.8,   // множник швидкості ворогів на відновленій землі
+    enemyDamageTakenMult: 1.15, // вороги на відновленій землі отримують більше урону
+    playerRegen: 4,        // HP/с гравцю на будь-якій відновленій землі (тихі гавані, але не безпечні)
+    // Дикі латки: постійні клаптики трави по Кільцю. Нова латка — кожні nestsPerPatch очищених гнізд,
+    // там, де гніздо було очищене. Позиції в сейві (MetaProgression.world.patches). Ліміт — не все Кільце.
+    PATCHES: {
+      nestsPerPatch: 3,
+      maxPatches: 12,
+      radiusMin: 170,
+      radiusMax: 240,
+      minDistHub: 1500,      // від центру Хаба
+      minDistPurifier: 1000,
+      minDistWarden: 900,
+      minDistPatch: 1300,    // між латками
+    },
     growSeconds: 2.5,      // анімація розростання при новій стадії
     toastSeconds: 4.5,     // банер «ЗЕМЛЮ ВІДНОВЛЕНО»
     sites: [
-      // Хаб: росте трохи — від усіх очищених гнізд за всі забіги
+      // Хаб: росте лише трохи — від усіх очищених гнізд за всі забіги (основний ріст — дикі латки)
       { id: 'hub', label: 'SANCTUARY', anchor: 'hub', counter: 'nestsCleansed', seed: 1171,
-        thresholds: [0, 4, 10, 18, 30], radii: [260, 320, 380, 440, 500] },
+        thresholds: [0, 4, 10, 18, 30], radii: [260, 300, 340, 380, 420] },
       // Пурифаєр: з'являється після першого відновлення, росте з кожним наступним
       { id: 'purifier', label: 'PURIFIER', anchor: 'landmark', counter: 'purifierRestorations', seed: 2393,
         thresholds: [1, 2, 4, 7], radii: [420, 520, 620, 720] },
@@ -243,9 +257,11 @@ export const CONFIG = {
     hubSafeRadius: 360,
     rampTimeSeconds: 120,
     WAVE: {
-      cycleDuration: 40,
+      // Хвиля = surge + ebb + breather. Рано пауз майже немає (з одним бластером ворогів і так мало,
+      // довгий перепочинок = нудьга); з хвилями пауза росте до повної. Індекс = номер хвилі - 1, далі — останнє.
       surgeDuration: 22,
-      ebbDuration: 8,
+      ebbByWave: [3, 4, 5, 6, 8],
+      breatherByWave: [2, 3, 4, 6, 8, 10],
       ambushTriggerTime: 10,
       ambushGapDegrees: 70, // пролом у кільці засідки для втечі
       minInterval: 0.14,
@@ -293,7 +309,7 @@ export const CONFIG = {
 };
 
 const DEFAULT_META_SAVE = {
-  version: 3,
+  version: 4,
   bankedTechScrap: 0,
   perks: {
     chassisArmor: 0,
@@ -305,7 +321,8 @@ const DEFAULT_META_SAVE = {
   // Лічильники постійного світу (стадії тераформування рахуються з них, див. TERRAFORM)
   world: {
     nestsCleansed: 0,
-    purifierRestorations: 0
+    purifierRestorations: 0,
+    patches: [] // дикі латки: { x, y, r, seed }
   }
 };
 
@@ -318,15 +335,23 @@ function refundRemovedTracksPerk(parsed) {
   return refund;
 }
 
+function sanitizePatches(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .map(p => ({ x: Number(p.x), y: Number(p.y), r: Number(p.r), seed: Number(p.seed) || 1 }))
+    .filter(p => Number.isFinite(p.x) && Number.isFinite(p.y) && p.r > 0);
+}
+
 export function loadMetaProgression() {
   try {
     const raw = localStorage.getItem('custodian_meta_save');
     if (!raw) return JSON.parse(JSON.stringify(DEFAULT_META_SAVE));
     const parsed = JSON.parse(raw);
     // v2 → v3: додано world (лічильники тераформування), старі сейви починають з нуля
+    // v3 → v4: додано world.patches; бракуючі латки за вже очищені гнізда добудовує terraform.js
     const world = parsed.world || {};
     return {
-      version: 3,
+      version: 4,
       bankedTechScrap: (Number(parsed.bankedTechScrap) || 0) + refundRemovedTracksPerk(parsed),
       perks: {
         chassisArmor: Number(parsed.perks && parsed.perks.chassisArmor) || 0,
@@ -337,7 +362,8 @@ export function loadMetaProgression() {
       },
       world: {
         nestsCleansed: Number(world.nestsCleansed) || 0,
-        purifierRestorations: Number(world.purifierRestorations) || 0
+        purifierRestorations: Number(world.purifierRestorations) || 0,
+        patches: sanitizePatches(world.patches)
       }
     };
   } catch (e) {

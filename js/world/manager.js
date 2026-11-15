@@ -183,9 +183,10 @@ export class WorldManager {
 
     for (let i = this.nests.length - 1; i >= 0; i--) {
       this.nests[i].update(dt, player, enemyManager);
-      if (!this.nests[i].alive) {
+      const nest = this.nests[i];
+      if (!nest.alive) {
         this.nests.splice(i, 1);
-        this.terraform.recordNestCleansed();
+        this.terraform.recordNestCleansed(nest.x, nest.y);
       }
     }
     if (this.coreDrop && this.coreDrop.alive) this.coreDrop.update(player);
@@ -196,6 +197,7 @@ export class WorldManager {
       }
     }
     this.terraform.update(dt);
+    player.onReclaimedGround = this.terraform.regenPlayer(player, dt);
     if (this.evac.update(dt, player, enemyManager)) this.completeEvac();
   }
 

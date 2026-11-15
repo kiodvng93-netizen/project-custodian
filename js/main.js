@@ -33,7 +33,7 @@ import {
 } from './render/ui.js';
 import {
   renderObjectiveArrow, renderEvacHUD, renderRunEndOverlay, renderHiveAlertHUD,
-  renderTerraformToast, renderReclamationStatus
+  renderTerraformToast, renderReclamationStatus, renderReclaimedGroundHUD
 } from './render/runUI.js';
 import { getRunObjective } from './world/objective.js';
 import { canLeaveRunEnd, startNewRun } from './run.js';
@@ -319,6 +319,7 @@ function renderFrame() {
   renderOutpostHUD(ctx, canvas, state.worldManager, state.player);
   renderEvacHUD(ctx, canvas, state);
   renderTerraformToast(ctx, canvas, state.worldManager.terraform);
+  renderReclaimedGroundHUD(ctx, canvas, state.player);
   renderArsenalHUD(ctx, canvas, state);
   renderPlayerVitalsHUD(ctx, canvas, state);
   if (!state.isDrafting && !state.isWorkshopOpen) {

@@ -125,8 +125,8 @@ export function reclaimedWorldSize(site, canvas, displayRadius) {
 export function renderReclaimedGround(ctx, terraform) {
   ctx.save();
   ctx.imageSmoothingEnabled = false;
-  for (let i = 0; i < terraform.sites.length; i++) {
-    const site = terraform.sites[i];
+  for (let i = 0; i < terraform.areas.length; i++) {
+    const site = terraform.areas[i];
     const canvas = getReclaimedCanvas(site);
     if (!canvas) continue;
     const s = reclaimedWorldSize(site, canvas, terraform.displayRadius(site));

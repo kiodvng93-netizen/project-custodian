@@ -1,9 +1,11 @@
-// js/world/terraform.js — Постійне тераформування: ділянки Хаба й Пурифаєра, їх стадії з сейву,
-// вплив відновленої землі на геймплей (повільніші вороги, без спавну, без гнізд/руїн)
+// js/world/terraform.js — Постійне тераформування: ділянки Хаба й Пурифаєра (стадії з сейву)
+// і дикі латки по Кільцю. Вплив відновленої землі: повільніші й вразливіші вороги, реген гравцю,
+// без спавну хвиль, без гнізд/руїн.
 
 import { CONFIG, MetaProgression, saveMetaProgression } from '../config.js';
 import { state, spawnShockwave } from '../state.js';
 import { Telemetry } from '../telemetry.js';
+import { earnedPatchCount, placePatchNear, placePatchAnywhere } from './terraformPatches.js';
 
 // Стадія = індекс останнього пройденого порогу; -1 = ділянка ще не відновлена
 function stageFor(siteCfg) {
@@ -62,7 +64,35 @@ export class TerraformSites {
         stageAtRunStart: stage,
       };
     });
+    this.patches = [];
+    // Латки, заслужені раніше без позиції (старі сейви) — добудовуємо детерміновано
+    const saved = MetaProgression.world.patches;
+    const rnd = mulberry32(9001 + saved.length * 7919);
+    let added = false;
+    while (saved.length < earnedPatchCount()) {
+      const spot = placePatchAnywhere(saved, rnd);
+      if (!spot) break;
+      saved.push(spot);
+      added = true;
+    }
+    if (added) saveMetaProgression();
+    for (let i = 0; i < saved.length; i++) this.patches.push(this.makePatchArea(saved[i], i));
+    this.areas = [];   // усі ділянки разом (рендер, геймплей)
+    this.rebuildAreas();
+    this.patchesAtRunStart = this.patches.length;
     this.toast = null; // { text, sub, life }
+  }
+
+  makePatchArea(p, index) {
+    return {
+      id: `patch_${index}`, label: 'WILD', seed: p.seed, edge: makeEdge(p.seed), isPatch: true,
+      x: p.x, y: p.y, stage: 0, maxStage: 0, radius: p.r,
+      displayFrom: p.r, growT: 1, stageAtRunStart: 0,
+    };
+  }
+
+  rebuildAreas() {
+    this.areas = this.sites.concat(this.patches);
   }
 
   // Видимий радіус (під час розростання плавно збільшується)
@@ -74,8 +104,8 @@ export class TerraformSites {
 
   // Чи точка на відновленій землі (pad — додатковий відступ від краю)
   isReclaimed(x, y, pad = 0) {
-    for (let i = 0; i < this.sites.length; i++) {
-      const s = this.sites[i];
+    for (let i = 0; i < this.areas.length; i++) {
+      const s = this.areas[i];
       if (s.radius <= 0) continue;
       const dx = x - s.x, dy = y - s.y;
       const dSq = dx * dx + dy * dy;
@@ -91,6 +121,19 @@ export class TerraformSites {
     return this.isReclaimed(x, y) ? CONFIG.TERRAFORM.enemySpeedMult : 1;
   }
 
+  enemyDamageTakenMultAt(x, y) {
+    return this.isReclaimed(x, y) ? CONFIG.TERRAFORM.enemyDamageTakenMult : 1;
+  }
+
+  // Реген гравцю на відновленій землі; повертає true, коли гравець на ній (для HUD)
+  regenPlayer(player, dt) {
+    if (!this.isReclaimed(player.x, player.y)) return false;
+    if (player.health > 0 && player.health < player.maxHealth) {
+      player.heal(Math.min(CONFIG.TERRAFORM.playerRegen * dt, player.maxHealth - player.health));
+    }
+    return true;
+  }
+
   // Подія збільшила лічильник: зберігаємо сейв і, якщо пройдено поріг, розростаємо ділянку
   bumpCounter(counter) {
     MetaProgression.world[counter] = (MetaProgression.world[counter] || 0) + 1;
@@ -103,7 +146,36 @@ export class TerraformSites {
     }
   }
 
-  recordNestCleansed() { this.bumpCounter('nestsCleansed'); }
+  // Очищене гніздо: лічильник Хаба + нова дика латка на місці гнізда, якщо її заслужено
+  recordNestCleansed(x, y) {
+    this.bumpCounter('nestsCleansed');
+    const saved = MetaProgression.world.patches;
+    if (saved.length >= earnedPatchCount()) return;
+    const spot = placePatchNear(x, y, saved, mulberry32(Math.floor(x * 31 + y * 17) ^ saved.length));
+    if (!spot) return;
+    saved.push(spot);
+    saveMetaProgression();
+    const area = this.makePatchArea(spot, this.patches.length);
+    area.displayFrom = spot.r * 0.25;
+    area.growT = 0;
+    this.patches.push(area);
+    this.rebuildAreas();
+    spawnShockwave(spot.x, spot.y, { radius: 30, maxRadius: spot.r + 140, color: '#68d391', speed: 480, lineWidth: 6 });
+    this.toast = {
+      text: 'WILD GROUND RECLAIMED',
+      sub: `PATCH ${this.patches.length}/${CONFIG.TERRAFORM.PATCHES.maxPatches} · REGEN +${CONFIG.TERRAFORM.playerRegen} HP/s ON GRASS`,
+      life: CONFIG.TERRAFORM.toastSeconds,
+    };
+    Telemetry.recordEvent('TERRAFORM', `Wild patch ${this.patches.length} reclaimed`);
+  }
+
+  // Прогрес латок для Воркшопу
+  patchProgress() {
+    const p = CONFIG.TERRAFORM.PATCHES;
+    const count = this.patches.length;
+    const next = count < p.maxPatches ? (count + 1) * p.nestsPerPatch : null;
+    return { count, max: p.maxPatches, next, value: MetaProgression.world.nestsCleansed };
+  }
   recordPurifierRestored() { this.bumpCounter('purifierRestorations'); }
 
   growSite(site, stage) {
@@ -131,16 +203,21 @@ export class TerraformSites {
 
   // Короткий підсумок для екрану кінця забігу
   summary() {
-    return this.sites.map((s) => ({
+    const rows = this.sites.map((s) => ({
       label: s.label, stage: s.stage + 1, maxStage: s.maxStage + 1,
       grew: s.stage - s.stageAtRunStart,
     }));
+    rows.push({
+      label: 'WILD', stage: this.patches.length, maxStage: CONFIG.TERRAFORM.PATCHES.maxPatches,
+      grew: this.patches.length - this.patchesAtRunStart,
+    });
+    return rows;
   }
 
   update(dt) {
     const grow = CONFIG.TERRAFORM.growSeconds;
-    for (let i = 0; i < this.sites.length; i++) {
-      const s = this.sites[i];
+    for (let i = 0; i < this.areas.length; i++) {
+      const s = this.areas[i];
       if (s.growT < 1) s.growT = Math.min(1, s.growT + dt / grow);
     }
     if (this.toast) {

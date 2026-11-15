@@ -118,6 +118,8 @@ export class Enemy {
   takeDamage(amount, sourceX, sourceY, suppressLoot = false) {
     if (!this.alive) return;
     if (this.invulnerable) { this.hitFlashTimer = 0.06; return; }
+    // На відновленій землі вороги вразливіші
+    amount *= state.worldManager.terraform.enemyDamageTakenMultAt(this.x, this.y);
     this.health -= amount;
     // Спалах лише від відчутного удару: DoT/контактний урон щокадру тримав би ворога вічно білим
     if (amount >= CONFIG.GORE.hitFlashMinDamage) this.hitFlashTimer = 0.12;

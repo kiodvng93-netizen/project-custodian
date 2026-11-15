@@ -14,8 +14,8 @@ export class PixiTerraformRenderer {
 
   // Нова стадія → нова текстура, стара звільняється
   sync(terraform) {
-    for (let i = 0; i < terraform.sites.length; i++) {
-      const site = terraform.sites[i];
+    for (let i = 0; i < terraform.areas.length; i++) {
+      const site = terraform.areas[i];
       const canvas = getReclaimedCanvas(site);
       let entry = this.entries.get(site.id);
       if (!canvas) {

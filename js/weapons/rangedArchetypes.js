@@ -104,11 +104,25 @@ export class MortarWeapon {
     const target = this.findBestClusterTarget(enemies);
     if (target) {
       const mult = this.owner.godMode ? 15 : 1;
-      ctxData.shells.push(new MortarShell(this.owner.x, this.owner.y, target.x, target.y, this.cfg, mult));
+      const aim = this.predictLanding(target);
+      ctxData.shells.push(new MortarShell(this.owner.x, this.owner.y, aim.x, aim.y, this.cfg, mult));
       this.cooldown = this.cfg.fireRate;
     }
   }
 
+  // Упередження: за час польоту ворог іде до гравця — цілимось туди, де він буде,
+  // але не далі за гравця (вороги зупиняються на ньому)
+  predictLanding(e) {
+    const t = this.cfg.flightDuration;
+    const groundMult = state.worldManager.terraform.enemySpeedMultAt(e.x, e.y);
+    const travel = e.speed * (e.currentSlow || 1) * groundMult * t * this.cfg.leadFactor;
+    const dx = this.owner.x - e.x, dy = this.owner.y - e.y;
+    const dist = Math.hypot(dx, dy) || 1;
+    const step = Math.min(travel, Math.max(0, dist - (this.owner.radius + e.radius)));
+    return { x: e.x + (dx / dist) * step, y: e.y + (dy / dist) * step };
+  }
+
+  // Ціль = найщільніша пачка, з перевагою ближчих (рано ворогів мало — б'ємо тих, що вже поруч)
   findBestClusterTarget(enemies) {
     const grid = state.enemyManager && state.enemyManager.grid;
     const pool = grid
@@ -119,11 +133,11 @@ export class MortarWeapon {
     let maxWeight = 0;
     for (let i = 0; i < pool.length; i++) {
       const e = pool[i];
-      if (!e.alive) continue;
+      if (!e.alive || e.invulnerable) continue;
       const d = Math.hypot(e.x - this.owner.x, e.y - this.owner.y);
       if (d < this.cfg.minRange || d > this.cfg.maxRange) continue;
 
-      let weight = 1;
+      let weight = 1 + 2 * (1 - d / this.cfg.maxRange);
       if (grid) {
         const neighbors = grid.getNearby(e.x, e.y, this.cfg.zoneRadius);
         for (let j = 0; j < neighbors.length; j++) {

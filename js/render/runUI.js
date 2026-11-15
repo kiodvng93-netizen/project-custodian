@@ -221,5 +221,25 @@ export function renderReclamationStatus(ctx, canvas, terraform) {
     ctx.fillStyle = site.stage >= 0 ? '#c6f6d5' : '#a0aec0';
     ctx.fillText(`${site.label}: STAGE ${site.stage + 1}/${site.maxStage + 1} — ${tail}`, cx, y);
   }
+  const pp = terraform.patchProgress();
+  y += 18;
+  ctx.fillStyle = pp.count > 0 ? '#c6f6d5' : '#a0aec0';
+  const tail = pp.next === null ? 'RING 1 LIMIT REACHED' : `NEXT AT ${pp.next} NESTS CLEANSED (NOW ${pp.value})`;
+  ctx.fillText(`WILD PATCHES: ${pp.count}/${pp.max} — ${tail}`, cx, y);
+  ctx.restore();
+}
+
+// Підказка, коли гравець стоїть на відновленій землі
+export function renderReclaimedGroundHUD(ctx, canvas, player) {
+  if (!player.onReclaimedGround) return;
+  const t = CONFIG.TERRAFORM;
+  const regen = player.health < player.maxHealth;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 12px monospace';
+  ctx.fillStyle = regen ? '#9ae6b4' : '#68d391';
+  const slow = Math.round((1 - t.enemySpeedMult) * 100);
+  const vuln = Math.round((t.enemyDamageTakenMult - 1) * 100);
+  ctx.fillText(`RECLAIMED GROUND · +${t.playerRegen} HP/s · FOES -${slow}% SPEED, +${vuln}% DMG TAKEN`, canvas.width / 2, canvas.height - 112);
   ctx.restore();
 }

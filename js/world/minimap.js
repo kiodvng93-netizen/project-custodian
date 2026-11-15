@@ -43,8 +43,8 @@ export function renderRadarMinimap(ctx, worldManager, player) {
   // Відновлена земля (постійне тераформування)
   const tf = worldManager.terraform;
   ctx.fillStyle = 'rgba(104, 211, 145, 0.45)';
-  for (let i = 0; i < tf.sites.length; i++) {
-    const s = tf.sites[i];
+  for (let i = 0; i < tf.areas.length; i++) {
+    const s = tf.areas[i];
     if (s.radius <= 0) continue;
     ctx.beginPath();
     ctx.arc(cx + s.x * scale, cy + s.y * scale, Math.max(3.5, tf.displayRadius(s) * scale), 0, Math.PI * 2);
