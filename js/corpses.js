@@ -8,6 +8,8 @@ import { state } from './state.js';
 import { BLOOD, bloodFor, paintSmear, paintGibSplat } from './gore.js';
 import { registerFreshPool } from './goreTracks.js';
 
+// Візуальне збільшення ворогів (лише малюнок; радіус/хітбокс не змінюється)
+export const ENEMY_VISUAL_BOOST = 1.3;
 const SCALE_BY_TYPE = { sprout: 3.0, stalker: 2.9, dasher: 3.0, warden: 3.2 };
 
 class Corpse {
@@ -44,7 +46,7 @@ class Corpse {
 
   // Ширина/висота відображення (в світових пікселях) для кадру решток
   displaySize(rect) {
-    const w = this.radius * (SCALE_BY_TYPE[this.typeKey] || 3) * CONFIG.CORPSES.sizeMult * (this.isElite ? 1.15 : 1);
+    const w = this.radius * (SCALE_BY_TYPE[this.typeKey] || 3) * ENEMY_VISUAL_BOOST * CONFIG.CORPSES.sizeMult * (this.isElite ? 1.15 : 1);
     return [w, rect ? w * (rect[3] / rect[2]) : w * 0.8];
   }
 }

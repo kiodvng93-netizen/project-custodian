@@ -7,9 +7,9 @@ import { mulberry32 } from '../world/terraform.js';
 export const GROUND_TILE_SIZE = 512;
 let cached = null;
 
-const BASE = '#1b1c20';
+const BASE = '#202228';
 // Дуже близькі до бази відтінки: різниця яскравості ~±4%
-const TONES = ['#202126', '#17181c', '#1e1f23', '#191a1e', '#222226'];
+const TONES = ['#252730', '#1b1d22', '#23252b', '#1e2025', '#282a31'];
 
 function wrappedBlob(ctx, size, x, y, r, color, alpha) {
   ctx.globalAlpha = alpha;
@@ -46,7 +46,7 @@ export function getGroundTileCanvas() {
   // Дуже слабкі середні плями — «брудна» нерівність без контрасту
   for (let i = 0; i < 30; i++) {
     const r = 24 + rnd() * 40;
-    wrappedBlob(ctx, size, rnd() * size, rnd() * size, r, rnd() < 0.5 ? '#141519' : '#232328', 0.25);
+    wrappedBlob(ctx, size, rnd() * size, rnd() * size, r, rnd() < 0.5 ? '#181a1e' : '#2a2c33', 0.25);
   }
   ctx.globalAlpha = 1;
   cached = canvas;
