@@ -97,6 +97,7 @@ export class OrbitalWeapon {
           } else if (!this.hitCooldowns.has(enemy)) {
             enemy.takeDamage(this.cfg.damage * mult, bx, by);
             this.hitCooldowns.set(enemy, this.cfg.hitCooldown || 0.25);
+            if (this.cfg.knockback && enemy.alive && !enemy.alarmThresholds) this.knockAway(enemy);
             ctxData.spawnParticles(bx, by);
             if (this.cfg.subAttack === 'chain') this.triggerChain(enemy, enemies, mult, ctxData);
           }
@@ -114,6 +115,18 @@ export class OrbitalWeapon {
         this.activeBeams.push({ fromX: bx, fromY: by, toX: nearestLaser.x, toY: nearestLaser.y, color: 'rgba(246, 173, 85,', life: 0.08, maxLife: 0.08 });
       }
     }
+  }
+
+  // Пилка відкидає від робота й збиває замах/випад (Сталкер більше не пролітає крізь орбіту)
+  knockAway(enemy) {
+    if (enemy.typeKey === 'warden' || enemy.isTitan) return; // бос і Титани надто важкі
+    const dx = enemy.x - this.owner.x, dy = enemy.y - this.owner.y;
+    const d = Math.hypot(dx, dy) || 1;
+    enemy.x += (dx / d) * this.cfg.knockback;
+    enemy.y += (dy / d) * this.cfg.knockback;
+    // Оглушуємо лише тих, хто замахується/робить випад — інакше 6 лез тримали натовп назовні вічно
+    const lunging = enemy.animState === 'windup' || enemy.animState === 'attack';
+    if (this.cfg.interruptStun && lunging) enemy.stun(this.cfg.interruptStun);
   }
 
   triggerChain(first, enemies, mult, ctxData) {

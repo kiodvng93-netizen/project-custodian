@@ -43,6 +43,7 @@ export class Enemy {
     this.facingAngle = 0;
     this.animState = typeKey === 'warden' ? 'idle' : 'chase';
     this.windupTimer = 0;
+    this.stunTimer = 0;
     this.attackTimer = 0;
     this.attackCooldown = 0;
     this.attackHitApplied = false;
@@ -73,6 +74,17 @@ export class Enemy {
     this.xpValue *= e.xpMult;
     this.outline = '#f6e05e';
     return this;
+  }
+
+  // Оглушення (відкидання від удару по гравцю). Бос і Титани не оглушуються; замах Сталкера скидається
+  stun(seconds) {
+    if (this.typeKey === 'warden' || this.isTitan) return;
+    this.stunTimer = Math.max(this.stunTimer, seconds);
+    if (this.animState === 'windup' || this.animState === 'attack') {
+      this.animState = 'chase';
+      this.isTelegraphing = false;
+      this.attackCooldown = Math.max(this.attackCooldown, CONFIG.ENEMIES.types.stalker.attackCooldown);
+    }
   }
 
   // Напрям «від удару» (джерело → ворог); 0,0 якщо джерело невідоме
@@ -197,6 +209,11 @@ export class Enemy {
       this.plasmaBurnTimer -= dt;
       this.takeDamage((this.plasmaBurnDmg || 8) * dt);
       if (!this.alive) return;
+    }
+    // Оглушення від відкидання гравцем: не рухається й не б'є — вікно, щоб вирватись з оточення
+    if (this.stunTimer > 0) {
+      this.stunTimer -= dt;
+      return;
     }
     const dx = player.x - this.x, dy = player.y - this.y, dist = Math.hypot(dx, dy);
     if (this.isTitan) {

@@ -97,14 +97,15 @@ export const CONFIG = {
 
   PLAYER: {
     baseSpeed: 180,
-    baseHealth: 100,
+    baseHealth: 120,           // було 100: оточення вбивало за ~4 с
     baseShieldCharges: 1,
     shieldRechargeTime: 25.0,
     pickupRadius: 110,
-    invulnOnDamage: 0.65,
+    invulnOnDamage: 0.9,       // було 0.65
     invulnOnShieldBreak: 0.70,
-    pushbackRadius: 85,
-    pushbackForce: 220,
+    pushbackRadius: 120,       // відкидання натовпу при ударі по гравцю (було 85)
+    pushbackForce: 450,        // зсув = force × 0.15 ≈ 68px (було 33px — вороги одразу верталися)
+    pushbackStun: 0.45,        // відкинуті вороги оглушені: вікно вирватись з оточення
 
     DASH: {
       speed: 740,
@@ -270,7 +271,7 @@ export const CONFIG = {
       escalation: {
         hpPerWave: 0.14,
         speedPerWave: 0.045,
-        damagePerWave: 0.09,
+        damagePerWave: 0.06,   // було 0.09: на 15-й хвилі ×1.84 замість ×2.26
         maxSpeedMult: 1.55,
       },
     },
@@ -284,7 +285,7 @@ export const CONFIG = {
       stalker: {
         name: 'Thorn Stalker', hp: 165, speed: 118, damage: 20, radius: 23, maxSpeedRatio: 0.85, // було 28: випад ×1.25 знімав пів HP
         color: '#551a1a', outline: '#e53e3e', xpValue: 3,
-        windupTime: 0.22, attackDuration: 0.15, attackCooldown: 0.65,
+        windupTime: 0.32, attackDuration: 0.15, attackCooldown: 0.65,
         attackRange: 84, lungeSpeed: 420
       },
       dasher: {

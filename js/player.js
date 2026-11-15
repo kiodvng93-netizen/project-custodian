@@ -170,14 +170,16 @@ export class Player {
     this.invulnerableTimer = CONFIG.PLAYER.invulnOnDamage;
     this.hurtFlash = 0.2; // лише для рендеру: спалах отриманого удару
     Telemetry.metrics.damageTaken += amount;
-    this.pushCrowdBack(CONFIG.PLAYER.pushbackRadius, CONFIG.PLAYER.pushbackForce);
+    this.pushCrowdBack(CONFIG.PLAYER.pushbackRadius, CONFIG.PLAYER.pushbackForce, CONFIG.PLAYER.pushbackStun);
+    spawnShockwave(this.x, this.y, { radius: 12, maxRadius: CONFIG.PLAYER.pushbackRadius, color: '#fc8181', speed: 520, lineWidth: 4 });
     if (state.camera) state.camera.addTrauma(CONFIG.JUICE.trauma.playerHit);
     triggerHitStop(CONFIG.JUICE.hitStop.playerHit);
 
     if (this.health <= 0) this.die();
   }
 
-  pushCrowdBack(radius, force) {
+  // Відкидання натовпу; stun — секунди оглушення відкинутих (вікно для втечі)
+  pushCrowdBack(radius, force, stun = 0) {
     if (!state.enemyManager) return;
     for (const e of state.enemyManager.enemies) {
       if (!e.alive) continue;
@@ -186,6 +188,7 @@ export class Player {
       if (d > 0 && d < radius + e.radius) {
         e.x += (dx / d) * force * 0.15;
         e.y += (dy / d) * force * 0.15;
+        if (stun > 0) e.stun(stun);
       }
     }
   }

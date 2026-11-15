@@ -8,14 +8,14 @@ import { EVOLUTIONS } from './catalog.js';
 // requiresOwned: лише апгрейд (стартовий Blaster і еволюції не встановлюються з драфту).
 const WEAPON_CARDS = [
   { key: 'blaster', title: 'TECH BLASTER', requiresOwned: true, upgradeDesc: '+6 Damage, +20% Fire Rate' },
-  { key: 'saw', title: 'SCRAP SAW (ORBITAL)', mountDesc: 'Mount orbital circular saw blade', upgradeDesc: '+1 Blade (max 4), +6 Damage' },
+  { key: 'saw', title: 'SCRAP SAW (ORBITAL)', mountDesc: 'Mount 2 orbiting saw blades that knock foes back', upgradeDesc: '+1 Blade (max 4), +5 Damage, wider orbit' },
   { key: 'mortar', title: 'BIO-SPORE MORTAR', mountDesc: 'Lob spores creating lingering slowing AoE clouds', upgradeDesc: '+14 Damage, +15 Cloud Radius (max 120)' },
   { key: 'tesla', title: 'TESLA ARC (CHAIN)', mountDesc: 'Unleash chained lightning bouncing between foes', upgradeDesc: '+8 Damage, +1 Chain Jump' },
   { key: 'drone', title: 'AEGIS DRONES (ORBITAL)', mountDesc: 'Deploy orbiting combat drones with laser interceptors', upgradeDesc: '+1 Drone (max 4), +5 Damage' },
   { key: 'flamer', title: 'PLASMA PURIFIER (CONE)', mountDesc: 'Auto-aimed cone of incinerating plasma that burns through foes', upgradeDesc: '+18 Damage, +25 Range (max 260)' },
   { key: 'staticAura', title: 'STATIC AURA (AURA)', mountDesc: 'Emit pulsing electromagnetic field slowing and shocking nearby foes', upgradeDesc: '+5 Damage, +15 Radius (max 180)' },
 
-  { key: 'voltHurricane', title: 'VOLT HURRICANE', requiresOwned: true, upgradeDesc: '+8 Damage, +6 Chain Damage, +1 Blade (max 4)' },
+  { key: 'voltHurricane', title: 'VOLT HURRICANE', requiresOwned: true, upgradeDesc: '+8 Damage, +6 Chain Damage, +1 Blade (max 5)' },
   { key: 'biomassIncinerator', title: 'BIOMASS INCINERATOR', requiresOwned: true, upgradeDesc: '+15 Impact, +8 Burn Zone Damage, +10 Radius (max 140)' },
   { key: 'hyperionTurret', title: 'HYPERION TURRET', requiresOwned: true, upgradeDesc: '+10 Damage, +6 Salvo Damage, +10% Fire Rate' },
   { key: 'stormSpore', title: 'STORM SPORE', requiresOwned: true, upgradeDesc: '+12 Damage, +6 Chain Damage, +10 Radius (max 130)' },
