@@ -241,11 +241,12 @@ export class PixiEntitiesRenderer {
       sh.width = 10; sh.height = 4;
       sh.alpha = 0.6;
 
-      const s = this.entityPool.acquire(p.type === 'bio' ? diamondTex : whiteTex);
+      const isFruit = p.type === 'fruit';
+      const s = this.entityPool.acquire(p.type === 'bio' ? diamondTex : isFruit ? this.pixi.getTexture('circle') : whiteTex);
       s.position.set(p.x, p.y);
-      const sz = p.type === 'bio' ? (p.radius + pulse) * 2 : p.radius;
+      const sz = p.type === 'bio' ? (p.radius + pulse) * 2 : isFruit ? 9 : p.radius;
       s.width = sz; s.height = sz;
-      s.tint = p.type === 'bio' ? 0x48bb78 : 0xecc94b;
+      s.tint = p.type === 'bio' ? 0x48bb78 : isFruit ? 0xff5a4a : 0xecc94b;
       s.zIndex = p.y;
     }
   }

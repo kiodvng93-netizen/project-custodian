@@ -237,9 +237,34 @@ export const CONFIG = {
     moss:   { fert: 3,  at: 0,   span: 80,  max: 40 },
     grass:  { fert: 5,  at: 60,  span: 160, max: 34 },
     flower: { fert: 10, at: 180, span: 160, max: 8 },
+    // Рослини (js/plants.js): поріг родючості клітинки і «час росту» g, з якого з'являються кущі й дерева
+    bush: { fert: 14, at: 140 },
+    tree: { fert: 30, at: 230 },
     edgeNoise: 0.3,         // розмах шуму порогу: м'який нерівний край плями
     noiseScale: 70,          // px періоду низькочастотного шуму
     reclaimedBloodAlpha: 0.35, // кров на відновленій землі блідша
+  },
+
+  // Рослини, що лікують (js/plants.js, js/render/pixiPlants.js): кущі (прохідні) і дрібні дерева (тверді),
+  // обидва плодоносять. Лише в межах забігу.
+  PLANTS: {
+    maxBushes: 36, maxTrees: 12,        // ліміт на забіг
+    perCell: { bush: 2, tree: 1 },      // на клітинку сітки родючості
+    areaSize: 640, perArea: { bush: 6, tree: 3 }, // ліміт на «район» (квадрат areaSize px)
+    spacing: { bush: 78, tree: 130 },   // мін. відстань між рослинами, px
+    minPlayerDist: 260,                 // не ростуть впритул до робота
+    scanInterval: 0.5, cellsPerScan: 1500, spawnPerScan: 2, spawnChance: 0.4,
+    growSeconds: { bush: 50, tree: 100 },
+    treeRadius: 9,                      // радіус стовбура (твердий коліджн), px
+    bushRadius: 15,                     // лише для відстані підбору
+    // Плоди: частка maxHP за плід, ліміти й відновлення
+    healFrac: 0.07,
+    maxFruit: { bush: 2, tree: 3 },
+    regrowSeconds: { bush: 80, tree: 65 },
+    totalFruitCap: 10,                  // скільки плодів одночасно може бути дозрілими на всій карті
+    magnetRadius: 70,                   // від краю рослини до робота
+    minMissingFrac: 0.6,                // їсти, лише якщо бракує ≥ цієї частки лікування плоду
+    pickCooldown: 0.9,                  // с між двома плодами з однієї рослини
   },
 
   // Сліди робота у свіжій крові (js/gore.js)

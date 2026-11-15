@@ -118,6 +118,7 @@ export class WorldManager {
         }
       }
     }
+    if (state.plants.resolve(circle, dt, target)) collided = true; // тверді дерева (js/plants.js)
     return collided;
   }
 

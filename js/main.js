@@ -8,6 +8,7 @@ import { GibManager } from './gibs.js';
 import { CorpseManager } from './corpses.js';
 import { GroundCover } from './groundCover.js';
 import { Fertility } from './fertility.js';
+import { PlantManager } from './plants.js';
 import { updateRobotTracks, resetGore } from './goreTracks.js';
 import { SpriteManager } from './sprites.js';
 import { PickupManager } from './pickups.js';
@@ -17,6 +18,7 @@ import { PixiCore } from './render/pixiCore.js';
 import { PixiWorldRenderer } from './render/pixiWorld.js';
 import { PixiTerraformRenderer } from './render/pixiTerraform.js';
 import { PixiEntitiesRenderer } from './render/pixiEntities.js';
+import { PixiPlantsRenderer } from './render/pixiPlants.js';
 import { PixiWeaponsRenderer } from './render/pixiWeapons.js';
 import { WorldManager } from './world/manager.js';
 import { renderOutpostHUD } from './world/outpost.js';
@@ -50,6 +52,7 @@ const pixi = new PixiCore();
 let pixiWorld = null;
 let pixiTerraform = null;
 let pixiEntities = null;
+let pixiPlants = null;
 let pixiWeapons = null;
 
 const camCfg = CONFIG.CAMERA;
@@ -86,6 +89,7 @@ state.enemyManager = new EnemyManager();
 state.worldManager = new WorldManager();
 state.groundCover = new GroundCover();
 state.fertility = new Fertility(state.groundCover);
+state.plants = new PlantManager();
 
 setRunRestartHandler(() => {
   CONFIG.PLAYER.pickupRadius = 110;
@@ -95,6 +99,7 @@ setRunRestartHandler(() => {
   state.corpseManager.clear();
   state.groundCover.clear();
   state.fertility = new Fertility(state.groundCover);
+  state.plants = new PlantManager();
   resetGore();
 
   // Смерть під час драфту/Воркшопу не має переносити меню й уповільнення в новий забіг
@@ -284,6 +289,7 @@ function renderFrame() {
     pixiWorld.syncCover(state.groundCover, camera, canvas.width, canvas.height);
     pixiWorld.syncDecals(state.decalManager, camera, canvas.width, canvas.height);
     pixiWorld.syncStructures(state.worldManager, camera, canvas.width, canvas.height, nowSec);
+    pixiPlants.sync(state.plants.plants, camera, canvas.width, canvas.height, nowSec);
     pixiEntities.sync(state, camera, canvas.width, canvas.height, nowSec);
     pixiWeapons.sync(state, camera, canvas.width, canvas.height, nowSec);
     pixi.render();
@@ -387,6 +393,7 @@ function gameLoop(currentTimestamp) {
     updateRobotTracks(state.decalManager, state.player, dt);
     state.decalManager.update(dt);
     state.fertility.update(dt);
+    state.plants.update(dt, state.player);
     for (let i = state.shockwaves.length - 1; i >= 0; i--) { state.shockwaves[i].update(dt); if (!state.shockwaves[i].alive) state.shockwaves.splice(i, 1); }
     updateFlashes(dt);
     for (let i = state.pickupManager.pickups.length - 1; i >= 0; i--) {
@@ -410,6 +417,7 @@ function gameLoop(currentTimestamp) {
     pixiWorld = new PixiWorldRenderer(pixi);
     pixiTerraform = new PixiTerraformRenderer(pixi);
     pixiEntities = new PixiEntitiesRenderer(pixi);
+    pixiPlants = new PixiPlantsRenderer(pixi);
     pixiWeapons = new PixiWeaponsRenderer(pixi);
   } catch (err) {
     console.warn('[PixiCore] Init failed, running Canvas 2D fallback:', err);
