@@ -9,8 +9,9 @@ export const GROUND_SCALE = 0.5;  // пікселів канви на світо
 const FRINGE = 80;                // світових px моху за краєм
 const cache = new Map();          // id → { stage, canvas }
 
-const BLOTCH = ['#30502a', '#263d20', '#3a5a2e', '#22371c', '#2f4f22'];
-const GRAIN = ['#4b7535', '#3f6a2f', '#5b8a3e', '#1d3018', '#6d9c48', '#355a29'];
+// Приглушена палітра: низький контраст, щоб не конкурувати з геймплеєм
+const BLOTCH = ['#2c4725', '#27401f', '#30502a', '#243a1e', '#2a4522'];
+const GRAIN = ['#33552a', '#2f4f26', '#3a5e2e', '#26401f', '#365a2b'];
 // Приглушені квіти: яскраві білі/жовті точки плутались із пікапами
 const FLOWERS = ['#9f7aea', '#b7791f', '#97266d', '#c05621'];
 
@@ -52,33 +53,32 @@ function bake(site, stage, radiusWorld) {
 
   ctx.save();
   ctx.clip(path);
-  ctx.fillStyle = '#2c4423';
+  ctx.fillStyle = '#2a4222';
   ctx.fillRect(0, 0, size, size);
   const area = Math.PI * r * r;
 
   // Великі плями відтінків
-  for (let i = 0, n = Math.floor(area / 260); i < n; i++) {
+  for (let i = 0, n = Math.floor(area / 700); i < n; i++) {
     const [x, y] = inDisc(r * EDGE_MAX);
-    ctx.globalAlpha = 0.55;
+    ctx.globalAlpha = 0.4;
     ctx.fillStyle = pick(BLOTCH);
-    ctx.beginPath(); ctx.arc(x, y, 3 + rnd() * 9, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, 8 + rnd() * 18, 0, Math.PI * 2); ctx.fill();
   }
   ctx.globalAlpha = 1;
   // Дрібне зерно
-  for (let i = 0, n = Math.floor(area / 9); i < n; i++) {
+  for (let i = 0, n = Math.floor(area / 90); i < n; i++) {
     const [x, y] = inDisc(r * EDGE_MAX);
     px(ctx, x, y, rnd() < 0.3 ? 2 : 1, 1, pick(GRAIN));
   }
   // Пучки трави
-  for (let i = 0, n = Math.floor(area / 160); i < n; i++) {
+  for (let i = 0, n = Math.floor(area / 1100); i < n; i++) {
     const [x, y] = inDisc(r * 1.05);
-    px(ctx, x - 1, y + 1, 3, 1, '#1d3018');
-    px(ctx, x - 1, y - 1, 1, 2, '#6d9c48');
-    px(ctx, x, y - 2, 1, 3, '#86b85a');
-    px(ctx, x + 1, y - 1, 1, 2, '#5b8a3e');
+    px(ctx, x - 1, y + 1, 3, 1, '#223a1c');
+    px(ctx, x, y - 2, 1, 3, '#4a7634');
+    px(ctx, x + 1, y - 1, 1, 2, '#3f6a2f');
   }
   // Квіти
-  for (let i = 0, n = Math.floor(area / 2600); i < n; i++) {
+  for (let i = 0, n = Math.floor(area / 9000); i < n; i++) {
     const [x, y] = inDisc(r * 0.95);
     const col = pick(FLOWERS);
     px(ctx, x - 1, y, 1, 1, col); px(ctx, x + 1, y, 1, 1, col);
@@ -93,7 +93,7 @@ function bake(site, stage, radiusWorld) {
 
   // Мох, що повзе на пустку за краєм (рідшає назовні)
   const perimeter = Math.PI * 2 * r;
-  for (let i = 0, n = Math.floor(perimeter * 1.6); i < n; i++) {
+  for (let i = 0, n = Math.floor(perimeter * 0.5); i < n; i++) {
     const a = rnd() * Math.PI * 2;
     const t = rnd();
     const d = r * edge(a) + t * t * fringe;
