@@ -2,6 +2,7 @@
 
 import { CONFIG } from './config.js';
 import { Telemetry } from './telemetry.js';
+import { state, spawnFlash } from './state.js';
 
 export class Pickup {
   constructor(x, y, type = 'bio', value = 1) {
@@ -53,7 +54,15 @@ export class Pickup {
 
   collect() {
     this.alive = false;
-    if (this.type === 'bio') {
+    if (this.type === 'fruit') {
+      // Плід: лікує робота (шлях player.heal), зелене «+N» і спалах
+      const p = state.player, before = p.health;
+      p.heal(this.value);
+      const gained = Math.round(p.health - before);
+      state.plants.onEaten(gained);
+      state.damageTexts.push({ x: p.x, y: p.y - p.radius - 18, text: `+${gained} HP`, life: 1.0, color: '#9ae6b4' });
+      spawnFlash(p.x, p.y, { radius: 34, tint: 0x9ae6b4, life: 0.28 });
+    } else if (this.type === 'bio') {
       Telemetry.metrics.resourcesCollected.bioEssence += this.value;
       Telemetry.recordEvent('LOOT', `+${this.value} Bio-Essence collected!`);
     } else {
@@ -100,6 +109,20 @@ export class PickupManager {
 
   spawn(x, y, type = 'bio', val = 1) {
     this.pickups.push(new Pickup(x, y, type, val));
+  }
+
+  // Плід з рослини: одразу летить до робота, лікує на value HP
+  spawnFruit(x, y, heal) {
+    const p = new Pickup(x, y, 'fruit', heal);
+    p.isMagnetized = true;
+    p.homingSpeed = 240;
+    p.radius = 5;
+    this.pickups.push(p);
+  }
+
+  hasFruit() {
+    for (let i = 0; i < this.pickups.length; i++) if (this.pickups[i].type === 'fruit' && this.pickups[i].alive) return true;
+    return false;
   }
 
   vacuumInRadius(x, y, radius = 900) {

@@ -51,7 +51,8 @@ export const state = {
   gibManager: null,
   corpseManager: null,
   groundCover: null,   // чанки покриву землі (js/groundCover.js)
-  fertility: null,     // родючість забігу: state.fertility.at(x, y) (js/fertility.js)
+  plants: null,        // рослини, що лікують (js/plants.js)
+  fertility: null,    // родючість забігу: state.fertility.at(x, y) (js/fertility.js)
   spriteManager: null,
 
   shockwaves: [],
