@@ -1,5 +1,6 @@
 // js/render/pixiEntities.js — Рендер гравця, ворогів, луту та уламків із тінями, спрайтами та Y-sorting
 
+import { state } from '../state.js';
 import { SpritePool } from './pixiCore.js';
 import { PixiSpriteAtlas } from './pixiSpriteAtlas.js';
 import { syncEnemies } from './pixiEnemies.js';
@@ -20,8 +21,10 @@ export class PixiEntitiesRenderer {
   // Тіла: кадр «купа решток» зі спрайт-листа (ще фізичні; «вросші» вже намальовані в декалях)
   syncCorpses(corpses, spriteManager, vl, vr, vt, vb) {
     this.corpsePool.beginFrame();
-    for (let i = 0; i < corpses.length; i++) {
-      const b = corpses[i];
+    const fading = state.corpseManager.fading;
+    for (let i = 0; i < corpses.length + fading.length; i++) {
+      const b = i < corpses.length ? corpses[i] : fading[i - corpses.length];
+      const fade = b.dissolveT === undefined ? 1 : 1 - b.dissolveT;
       if (b.x < vl || b.x > vr || b.y < vt || b.y > vb) continue;
       const key = `enemy_${b.typeKey}`;
       const meta = spriteManager && spriteManager.getMeta(key);
@@ -37,12 +40,14 @@ export class PixiEntitiesRenderer {
         s.scale.x *= b.flip;
         s.rotation = b.rot;
         if (b.crushed) s.tint = 0xb8a8a8;
+        s.alpha = fade;
       } else {
         const s = this.corpsePool.acquire(this.pixi.getTexture('circle'));
         s.position.set(b.x, b.y);
         s.width = b.radius * 2; s.height = b.radius * 1.4;
         s.rotation = b.rot;
         s.tint = 0x3a2a2a;
+        s.alpha = fade;
       }
     }
     this.corpsePool.endFrame();

@@ -18,6 +18,7 @@ export class PixiWorldRenderer {
     this.hubSprite = null;
     this.landmarkAura = null;
 
+    this.coverPool = new SpritePool(pixi.coverLayer);
     this.decalPool = new SpritePool(pixi.decalLayer);
     // Витіснений чанк декалей → знищуємо його текстуру, інакше новий чанк з тим самим ключем малюється старим canvas
     this.onDecalEvict = (key) => this.pixi.releaseCanvasTexture(`decal_${key}`);
@@ -73,6 +74,32 @@ export class PixiWorldRenderer {
     this.bgTile.width = w;
     this.bgTile.height = h;
     this.bgTile.tilePosition.set(-left, -top);
+  }
+
+  // Покрив землі (мох/трава/квіти): окремі чанки під шаром крові, текстура оновлюється рідко
+  syncCover(cover, camera, viewW, viewH) {
+    this.coverPool.beginFrame();
+    if (cover) {
+      cover.onEvict = (key) => this.pixi.releaseCanvasTexture(`cover_${key}`);
+      const cs = cover.chunkSize;
+      const minCx = Math.floor((camera.x - viewW * 0.5 - 64) / cs), maxCx = Math.floor((camera.x + viewW * 0.5 + 64) / cs);
+      const minCy = Math.floor((camera.y - viewH * 0.5 - 64) / cs), maxCy = Math.floor((camera.y + viewH * 0.5 + 64) / cs);
+      const nowMs = performance.now();
+      for (let cx = minCx; cx <= maxCx; cx++) {
+        for (let cy = minCy; cy <= maxCy; cy++) {
+          const key = cover.key(cx, cy);
+          const chunk = cover.chunks.get(key);
+          if (!chunk) continue;
+          chunk.lastUsed = nowMs;
+          const upload = chunk.needsTextureUpdate && nowMs - chunk.lastUploadAt >= 250;
+          const tex = this.pixi.getCanvasTexture(`cover_${key}`, chunk.canvas, upload);
+          if (upload) { chunk.needsTextureUpdate = false; chunk.lastUploadAt = nowMs; }
+          if (!tex) continue;
+          this.coverPool.acquire(tex).position.set(chunk.worldX + cs * 0.5, chunk.worldY + cs * 0.5);
+        }
+      }
+    }
+    this.coverPool.endFrame();
   }
 
   syncDecals(decalManager, camera, viewW, viewH) {

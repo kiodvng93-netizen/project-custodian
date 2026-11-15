@@ -55,6 +55,7 @@ class Corpse {
 export class CorpseManager {
   constructor() {
     this.corpses = [];
+    this.fading = [];   // тіла на відновленій землі, що розчиняються замість запікання
     this._frame = 0;
   }
 
@@ -72,6 +73,12 @@ export class CorpseManager {
   bake(b) {
     const decals = state.decalManager;
     if (!decals) return;
+    // Відновлена земля: вростає лише ~1 з keepOneIn тіл (блідим), решта розчиняється; рішення тут і тепер
+    let faded = false;
+    if (state.worldManager.terraform.isReclaimed(b.x, b.y)) {
+      if (Math.random() * CONFIG.CORPSES.keepOneIn >= 1) { b.dissolveT = 0; this.fading.push(b); return; }
+      faded = true;
+    }
     const sm = state.spriteManager;
     const key = `enemy_${b.typeKey}`;
     const meta = sm && sm.getMeta(key);
@@ -89,8 +96,22 @@ export class CorpseManager {
       ctx.scale(b.flip * sx, sy);
       // розчавлене темніше (поки немає окремого кадру «розчавлене» в листі)
       if (b.crushed) ctx.filter = 'brightness(0.72) saturate(0.85)';
+      if (faded) {
+        // бліде тіло: спершу в окремий малий canvas із домішкою кольору землі (лише по пікселях тіла)
+        const cv = document.createElement('canvas');
+        cv.width = Math.ceil(w); cv.height = Math.ceil(h);
+        const t = cv.getContext('2d');
+        t.drawImage(src, rect[0], rect[1], rect[2], rect[3], 0, 0, cv.width, cv.height);
+        t.globalCompositeOperation = 'source-atop';
+        t.globalAlpha = CONFIG.CORPSES.reclaimedTintMix;
+        t.fillStyle = CONFIG.CORPSES.reclaimedTint;
+        t.fillRect(0, 0, cv.width, cv.height);
+        ctx.globalAlpha = CONFIG.CORPSES.reclaimedAlpha;
+        ctx.drawImage(cv, -w / 2, -h / 2, w, h);
+        return;
+      }
       ctx.drawImage(src, rect[0], rect[1], rect[2], rect[3], -w / 2, -h / 2, w, h);
-    });
+    }, { plain: true });
   }
 
   // Наїзд робота: тіло сплющується, кров бризкає в боки від гусениць, гусениці брудняться
@@ -114,6 +135,10 @@ export class CorpseManager {
 
   update(dt, player) {
     const c = CONFIG.CORPSES;
+    for (let i = this.fading.length - 1; i >= 0; i--) {
+      this.fading[i].dissolveT += dt / c.dissolveTime;
+      if (this.fading[i].dissolveT >= 1) this.fading.splice(i, 1);
+    }
     const moving = player.vx * player.vx + player.vy * player.vy > c.crushMinSpeed * c.crushMinSpeed;
     for (let i = this.corpses.length - 1; i >= 0; i--) {
       const b = this.corpses[i];
@@ -146,6 +171,7 @@ export class CorpseManager {
 
   clear() {
     this.corpses.length = 0;
+    this.fading.length = 0;
   }
 
   // Canvas 2D fallback (без Pixi): кадр решток або темний еліпс
