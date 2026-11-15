@@ -31,9 +31,12 @@ export class PixiEntitiesRenderer {
         const [w, h] = b.displaySize(rect);
         const s = this.corpsePool.acquire(tex);
         s.position.set(b.x, b.y);
-        s.width = w; s.height = h;
+        // розчавлене: ширше, пласкіше, темніше (поки в листах немає окремого кадру)
+        const [cx, cy] = b.crushScale();
+        s.width = w * cx; s.height = h * cy;
         s.scale.x *= b.flip;
         s.rotation = b.rot;
+        if (b.crushed) s.tint = 0xb8a8a8;
       } else {
         const s = this.corpsePool.acquire(this.pixi.getTexture('circle'));
         s.position.set(b.x, b.y);

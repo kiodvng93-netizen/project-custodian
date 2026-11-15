@@ -375,7 +375,7 @@ function gameLoop(currentTimestamp) {
     for (let i = 0; i < state.worldManager.nests.length; i++) _allTargets.push(state.worldManager.nests[i]);
     state.weaponManager.update(dt, _allTargets);
     if (state.gibManager) state.gibManager.update(dt, state.decalManager);
-    state.corpseManager.update(dt, state.player, state.enemyManager, state.decalManager);
+    state.corpseManager.update(dt, state.player);
     updateRobotTracks(state.decalManager, state.player, dt);
     for (let i = state.shockwaves.length - 1; i >= 0; i--) { state.shockwaves[i].update(dt); if (!state.shockwaves[i].alive) state.shockwaves.splice(i, 1); }
     updateFlashes(dt);

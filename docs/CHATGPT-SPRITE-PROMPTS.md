@@ -14,6 +14,8 @@
 
 **Формат кожної картинки: 1536×1024, сітка 3 колонки × 2 ряди, клітинка 512×512.** Це рідний розмір ChatGPT (альбомна орієнтація), тож нічого не обрізається. Кадри читаються зліва направо, зверху вниз (1-2-3 / 4-5-6). Код нарізає за вмістом (`js/spriteSlicer.js`), тож точні до пікселя межі не обов'язкові, але **персонаж не має виходити за свою клітинку**.
 
+**Тіло має два стани.** Останні два кадри смуги смерті: кадр 5 — ціле тіло (купа решток), кадр 6 — **те саме** тіло, розчавлене гусеницями робота (сплющене, ширше, кров видавлена в боки, сліди траків). У грі тіло коротко відлітає від удару й далі лежить нерухомо; перші 15 с робот може розчавити його наїздом — тоді кадр 5 змінюється на кадр 6. Тому кадр 6 мусить мати той самий центр і ті самі шматки, що й кадр 5, інакше підміна «стрибатиме».
+
 **Напрямки: малюємо лише 5 (S, SE, E, NE, N).** W, SW, NW код отримує дзеркалом. Напрямок у промпті описано через екран («обличчям до нижнього правого кута»), бо слова «схід/південь» модель плутає.
 
 ## 1. Порядок роботи (важливо для однаковості)
@@ -76,7 +78,7 @@ RULES FOR EVERY IMAGE IN THIS CHAT:
 | 5 | `sprout_walk_ne.png` | `Strip 5: WALK cycle, 6 frames, facing diagonally toward the top-right corner of the image (away from the viewer and to the right). We see its back, the glowing abdomen, and part of its left side; the face is hidden. Seamless loop, same size as before. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background.` |
 | 6 | `sprout_walk_n.png` | `Strip 6: WALK cycle, 6 frames, facing away from the viewer (walking toward the top of the image). We see only its back and the glowing abdomen, no face. Seamless loop, same size as before. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background.` |
 | 7 | `sprout_attack.png` | `Strip 7: ATTACK, 6 frames, facing the viewer. 1-2: rears back and opens its jaws. 3-4: spits a short burst of green acid straight down (keep the spit inside the cell). 5-6: recovers to the idle pose. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background.` |
-| 8 | `sprout_hit_death.png` | `Strip 8: HIT and DEATH, 6 frames, facing the viewer. 1: flinch recoil (squashed, leaning back). 2: back to normal. 3-4: it bursts apart with green slime. 5 and 6: two different flat piles of remains lying on the ground (broken legs, shell pieces, green slime puddle), seen from above. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background.` |
+| 8 | `sprout_hit_death.png` | `Strip 8: HIT and DEATH, 6 frames, facing the viewer. 1: flinch recoil (squashed, leaning back). 2: back to normal. 3-4: it bursts apart with green slime. 5: the REMAINS lying on the ground, seen from above: broken legs, shell pieces, glowing abdomen chunks, green slime puddle. 6: the SAME remains from frame 5 after a heavy tracked robot drove over them: identical pieces, same colors, same position and same center, but squashed flat and spread wider sideways, pieces broken and pressed into the ground, blood squeezed out to both sides, two faint parallel tread imprints across it. Frame 6 must clearly be the crushed version of frame 5, not a different pile. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background.` |
 
 ## 4. Stalker (`enemy_stalker.png`) — кров червона
 
@@ -107,7 +109,7 @@ RULES FOR EVERY IMAGE IN THIS CHAT:
 | 5 | `stalker_walk_ne.png` | `Strip 5: WALK cycle, 6 frames, facing diagonally toward the top-right corner of the image (away from the viewer and to the right). We see its spiked back and part of its left side, mask hidden. Seamless loop, same size. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background.` |
 | 6 | `stalker_walk_n.png` | `Strip 6: WALK cycle, 6 frames, facing away from the viewer (walking toward the top of the image). Only the spiked armored back is visible. Seamless loop, same size. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background.` |
 | 7 | `stalker_attack.png` | `Strip 7: LUNGE ATTACK, 6 frames, facing the viewer. 1-2: crouches low and raises both scythe claws (wind-up). 3-4: lunges forward and slashes down with both claws, a short motion arc that stays inside the cell. 5-6: recovers to stance. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background.` |
-| 8 | `stalker_hit_death.png` | `Strip 8: HIT and DEATH, 6 frames, facing the viewer. 1: flinch recoil. 2: back to normal. 3-4: armor cracks and it collapses spraying dark red blood. 5 and 6: two different flat piles of remains on the ground (cracked plates, claws, the bone mask, dark red blood pool), seen from above. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background.` |
+| 8 | `stalker_hit_death.png` | `Strip 8: HIT and DEATH, 6 frames, facing the viewer. 1: flinch recoil. 2: back to normal. 3-4: armor cracks and it collapses spraying dark red blood. 5: the REMAINS lying on the ground, seen from above: cracked plates, claws, the bone mask, dark red blood pool. 6: the SAME remains from frame 5 after a heavy tracked robot drove over them: identical pieces, same colors, same position and same center, but squashed flat and spread wider sideways, pieces broken and pressed into the ground, blood squeezed out to both sides, two faint parallel tread imprints across it. Frame 6 must clearly be the crushed version of frame 5, not a different pile. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background.` |
 
 ## 5. Dasher (`enemy_dasher.png`) — кров синя
 
@@ -140,7 +142,7 @@ RULES FOR EVERY IMAGE IN THIS CHAT:
 | 4 | `dasher_fly_ne.png` | `Strip 4: FLY loop, 6 frames, facing diagonally toward the top-right corner of the image (away from the viewer and to the right). We see its back and wings from behind, eyes hidden. Same cycle and size. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background, opaque wings.` |
 | 5 | `dasher_fly_n.png` | `Strip 5: FLY loop, 6 frames, facing away from the viewer (flying toward the top of the image). Back view: wings, back, stinger. Same cycle and size. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background, opaque wings.` |
 | 6 | `dasher_attack.png` | `Strip 6: STING DIVE, 6 frames, facing the viewer. 1-2: pulls back, stinger curls forward. 3-4: dives forward and stabs down with the stinger (keep inside the cell). 5-6: pulls back to hover. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background, opaque wings.` |
-| 7 | `dasher_hit_death.png` | `Strip 7: HIT and DEATH, 6 frames, facing the viewer. 1: flinch, wings jolted. 2: back to normal. 3-4: it bursts with bright blue blood, wings tearing. 5 and 6: two different flat piles of remains on the ground (torn wings, black shell bits, green stinger, bright blue blood pool), seen from above. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background.` |
+| 7 | `dasher_hit_death.png` | `Strip 7: HIT and DEATH, 6 frames, facing the viewer. 1: flinch, wings jolted. 2: back to normal. 3-4: it bursts with bright blue blood, wings tearing. 5: the REMAINS lying on the ground, seen from above: torn wings, black shell bits, green stinger, bright blue blood pool. 6: the SAME remains from frame 5 after a heavy tracked robot drove over them: identical pieces, same colors, same position and same center, but squashed flat and spread wider sideways, pieces broken and pressed into the ground, blood squeezed out to both sides, two faint parallel tread imprints across it. Frame 6 must clearly be the crushed version of frame 5, not a different pile. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background.` |
 
 ## 6. Warden (`boss_warden.png`) — кров фіолетова
 
@@ -174,7 +176,7 @@ RULES FOR EVERY IMAGE IN THIS CHAT:
 | 5 | `warden_walk_ne.png` | `Strip 5: WALK cycle, 6 frames, facing diagonally toward the top-right corner of the image (away from the viewer and to the right). We see its spined back, missile pods and part of its left side; the core is hidden. Seamless loop, same size. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background.` |
 | 6 | `warden_walk_n.png` | `Strip 6: WALK cycle, 6 frames, facing away from the viewer (walking toward the top of the image). Back view only. Seamless loop, same size. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background.` |
 | 7 | `warden_charge.png` | `Strip 7: CHARGE ATTACK, 6 frames, facing the viewer. 1-3: wind-up: it plants its feet, leans forward, the chest core grows brighter each frame. 4-5: it rams forward, body low, claws out (no beam, no effects outside the body). 6: recovers. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background.` |
-| 8 | `warden_hit_death.png` | `Strip 8: HIT and DEATH, 6 frames, facing the viewer. 1: flinch recoil. 2: back to normal. 3-4: the core cracks and it collapses, armor breaking, purple blood. 5 and 6: two different flat heaps of wreckage on the ground (armor plates, claws, dead dark core, purple blood pool), seen from above. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background.` |
+| 8 | `warden_hit_death.png` | `Strip 8: HIT and DEATH, 6 frames, facing the viewer. 1: flinch recoil. 2: back to normal. 3-4: the core cracks and it collapses, armor breaking, purple blood. 5: the REMAINS lying on the ground, seen from above: armor plates, claws, dead dark core, purple blood pool. 6: the SAME remains from frame 5 after a heavy tracked robot drove over them: identical pieces, same colors, same position and same center, but squashed flat and spread wider sideways, pieces broken and pressed into the ground, blood squeezed out to both sides, two faint parallel tread imprints across it. Frame 6 must clearly be the crushed version of frame 5, not a different pile. Follow all chat rules: 1536x1024, 3x2 grid, flat #FF00FF background.` |
 
 ## 7. Уламки (гібси) — один новий чат
 
@@ -214,6 +216,7 @@ RULES FOR EVERY IMAGE IN THIS CHAT:
 | Не 6 кадрів / є цифри чи підписи | `Redo with exactly 6 frames in a 3x2 grid, and no text, numbers, labels or grid lines.` |
 | Розмір персонажа скаче між кадрами | `Redo the same image. The character must be the same size and scale in all 6 frames, feet at the same height.` |
 | Персонаж змінився (кольори, ноги, очі) | Прикріпи найкращу попередню картинку: `This attached image is the exact character. Redo the last strip matching it exactly.` |
+| Кадр 6 — інша купа, а не розчавлена версія кадру 5 | `Redo the same strip. Frame 6 must be exactly the frame 5 remains, same pieces and same center, just crushed flat by tank treads and spread wider, with blood squeezed out to the sides.` |
 | Неправильний напрямок | `Wrong direction. Redo the same strip with the character facing <toward the bottom-right corner / right edge / top-right corner / top> of the image.` |
 | Розмір не 1536×1024 | `Redo at exactly 1536x1024 landscape, 3 columns x 2 rows of 512x512 cells.` |
 
@@ -221,5 +224,6 @@ RULES FOR EVERY IMAGE IN THIS CHAT:
 
 - Ключування маджента (`#FF00FF` і близькі до нього рожеві пікселі на краях) у `js/sprites.js` замість білого.
 - Новий маніфест: окремий файл на анімацію (`sprout_walk_se.png` …), W/SW/NW — дзеркало E/SE/NE.
+- Тіла: кадр 5 смуги смерті = ціле тіло, кадр 6 = розчавлене (зараз розчавлення імітується сплющенням і затемненням того самого кадру).
 - `js/render/enemyAnim.js`: ходьба в усіх 8 напрямках анімована (зараз анімована лише «до камери»), окремий кадр удару, нові кадри смерті/купи решток.
 - Уламки: `js/render/pixiEntities.js` малює кадри `gibs_*.png` замість кіл/квадратів/трикутників; кувиркання й мазки лишаються.

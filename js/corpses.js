@@ -1,17 +1,17 @@
-// js/corpses.js — Тіла ворогів (кадр «купа решток» зі спрайт-листа). Відлітають від удару, їх штовхає
-// робот (dash — далеко) і вороги, при ковзанні мажуть кров. Через CORPSES.interactiveTime тіло
-// «вростає» в землю: малюється в чанк декалей назавжди і більше нічого не коштує щокадру.
-// Так після бою лишаються купи тіл.
+// js/corpses.js — Тіла ворогів (кадр «купа решток» зі спрайт-листа). Коротко відлітають від
+// смертельного удару, далі лежать нерухомо. Два стани: перші CORPSES.interactiveTime секунд робот
+// може розчавити тіло наїздом (сплющується, бризкає кров'ю, гусениці брудняться) — тоді воно одразу
+// «вростає» в землю розчавленим. Не розчавлене вростає як є. Так після бою лишаються купи тіл.
 
 import { CONFIG } from './config.js';
 import { state } from './state.js';
-import { BLOOD, bloodFor, paintSmear } from './gore.js';
+import { BLOOD, bloodFor, paintSmear, paintGibSplat } from './gore.js';
+import { registerFreshPool } from './goreTracks.js';
 
 const SCALE_BY_TYPE = { sprout: 3.0, stalker: 2.9, dasher: 3.0, warden: 3.2 };
 
 class Corpse {
   constructor(enemy, dirX, dirY, power) {
-    const c = CONFIG.CORPSES;
     this.x = enemy.x;
     this.y = enemy.y;
     this.typeKey = enemy.typeKey;
@@ -21,13 +21,25 @@ class Corpse {
     this.blood = bloodFor(enemy);
     this.variant = Math.random() < 0.5 ? 0 : 1;   // один із двох кадрів решток
     this.flip = Math.random() < 0.5 ? -1 : 1;     // дзеркально для різноманіття
-    const kick = c.knockback * (0.7 + Math.random() * 0.6) * power;
+    const kick = CONFIG.CORPSES.knockback * (0.7 + Math.random() * 0.6) * power;
     this.vx = dirX * kick;
     this.vy = dirY * kick;
-    this.rot = (Math.random() - 0.5) * 0.5;
-    this.spin = 0;
-    this.age = 0;
     this.smearDist = 0;
+    this.rot = (Math.random() - 0.5) * 0.5;
+    this.age = 0;
+    this.crushed = false;
+    this.crushT = 0;      // 0..1 — анімація сплющення
+    this.crushAngle = 0;  // курс робота в момент наїзду: тіло розпливається поперек
+  }
+
+  // Масштаб відображення: ціле — 1×1; розчавлене — ширше й пласке, з легким «відскоком»
+  crushScale() {
+    if (!this.crushed) return [1, 1];
+    const t = Math.min(1, this.crushT);
+    const k = 1 - Math.pow(1 - t, 3);
+    const bounce = Math.sin(t * Math.PI) * 0.08;
+    const c = CONFIG.CORPSES;
+    return [1 + (c.crushWiden - 1) * k + bounce, 1 - (1 - c.crushFlatten) * k - bounce];
   }
 
   // Ширина/висота відображення (в світових пікселях) для кадру решток
@@ -65,79 +77,63 @@ export class CorpseManager {
     }
     const rect = meta.corpseFrames[b.variant % meta.corpseFrames.length];
     const [w, h] = b.displaySize(rect);
-    decals.paintOnWorld(b.x, b.y, Math.max(w, h) * 0.6, (ctx, lx, ly) => {
+    const [sx, sy] = b.crushScale();
+    decals.paintOnWorld(b.x, b.y, Math.max(w * sx, h) * 0.6, (ctx, lx, ly) => {
       ctx.translate(lx, ly);
       ctx.rotate(b.rot);
-      ctx.scale(b.flip, 1);
+      ctx.scale(b.flip * sx, sy);
+      // розчавлене темніше (поки немає окремого кадру «розчавлене» в листі)
+      if (b.crushed) ctx.filter = 'brightness(0.72) saturate(0.85)';
       ctx.drawImage(src, rect[0], rect[1], rect[2], rect[3], -w / 2, -h / 2, w, h);
     });
   }
 
-  update(dt, player, enemyManager, decals) {
+  // Наїзд робота: тіло сплющується, кров бризкає в боки від гусениць, гусениці брудняться
+  crush(b, player) {
     const c = CONFIG.CORPSES;
-    const friction = Math.pow(c.friction, dt * 60);
-    const checkEnemies = (this._frame++ % c.enemyPushInterval) === 0;
-    const grid = enemyManager && enemyManager.grid;
+    b.crushed = true;
+    b.crushT = 0;
+    const heading = Math.atan2(player.vy, player.vx);
+    b.crushAngle = heading;
+    const decals = state.decalManager;
+    const r = b.radius * c.crushSplat;
+    // дві хвилі крові — в обидва боки, перпендикулярно до руху
+    for (const side of [-1, 1]) {
+      const a = heading + side * Math.PI / 2 + (Math.random() - 0.5) * 0.5;
+      paintGibSplat(decals, b.x + Math.cos(a) * r * 0.4, b.y + Math.sin(a) * r * 0.4, r * 0.55, a, b.blood, 1.3);
+    }
+    paintGibSplat(decals, b.x, b.y, r * 0.7, heading, b.blood, 0.8);
+    registerFreshPool(b.x, b.y, b.radius * 1.6, b.blood);
+    if (state.camera) state.camera.addTrauma(c.crushTrauma);
+  }
 
+  update(dt, player) {
+    const c = CONFIG.CORPSES;
+    const moving = player.vx * player.vx + player.vy * player.vy > c.crushMinSpeed * c.crushMinSpeed;
     for (let i = this.corpses.length - 1; i >= 0; i--) {
       const b = this.corpses[i];
       b.age += dt;
-      const speed0 = Math.hypot(b.vx, b.vy);
-      if (b.age >= c.interactiveTime && speed0 < 2) {
-        this.bake(b);
-        this.corpses.splice(i, 1);
+      if (b.crushed) {
+        b.crushT += dt / c.crushTime;
+        if (b.crushT >= 1) { this.bake(b); this.corpses.splice(i, 1); }
         continue;
       }
-
-      // Робот штовхає (dash відкидає далеко)
-      const px = b.x - player.x, py = b.y - player.y;
-      const minD = b.radius * 0.8 + player.radius;
-      const dSq = px * px + py * py;
-      if (dSq < minD * minD && dSq > 0.01) {
-        const d = Math.sqrt(dSq);
-        const nx = px / d, ny = py / d;
-        b.x = player.x + nx * minD;
-        b.y = player.y + ny * minD;
-        const along = Math.max(0, player.vx * nx + player.vy * ny);
-        b.vx += nx * (along * c.playerPush + 40);
-        b.vy += ny * (along * c.playerPush + 40);
-        b.spin += (Math.random() - 0.5) * 3;
-      }
-
-      // Вороги розштовхують тіла (рідше, через сітку)
-      if (checkEnemies && grid) {
-        const near = grid.getNearby(b.x, b.y, b.radius + 40);
-        for (let j = 0; j < near.length; j++) {
-          const e = near[j];
-          if (!e.alive) continue;
-          const ex = b.x - e.x, ey = b.y - e.y;
-          const md = b.radius * 0.7 + e.radius;
-          const eSq = ex * ex + ey * ey;
-          if (eSq < md * md && eSq > 0.01) {
-            const d = Math.sqrt(eSq);
-            b.x += (ex / d) * (md - d) * 0.5;
-            b.y += (ey / d) * (md - d) * 0.5;
-          }
+      if (b.age >= c.interactiveTime) { this.bake(b); this.corpses.splice(i, 1); continue; }
+      // короткий відліт від удару з кров'яним слідом, потім тіло нерухоме
+      if (b.vx !== 0 || b.vy !== 0) {
+        const speed = Math.hypot(b.vx, b.vy);
+        if (speed < 4) { b.vx = 0; b.vy = 0; }
+        else {
+          b.x += b.vx * dt; b.y += b.vy * dt;
+          const f = Math.pow(c.friction, dt * 60);
+          b.vx *= f; b.vy *= f;
+          b.smearDist += speed * dt;
+          if (speed > 30 && b.smearDist >= c.smearStep) { b.smearDist = 0; paintSmear(state.decalManager, b.x, b.y, b.blood, b.radius * 0.7); }
         }
       }
-
-      // Ковзання з тертям і кров'яним слідом
-      const speed = Math.hypot(b.vx, b.vy);
-      if (speed > 2) {
-        b.x += b.vx * dt;
-        b.y += b.vy * dt;
-        b.vx *= friction;
-        b.vy *= friction;
-        b.rot += b.spin * dt;
-        b.spin *= friction;
-        b.smearDist += speed * dt;
-        if (speed > 30 && b.smearDist >= c.smearStep) {
-          b.smearDist = 0;
-          paintSmear(decals, b.x, b.y, b.blood, b.radius * 0.7);
-        }
-      } else {
-        b.vx = 0; b.vy = 0;
-      }
+      if (!moving) continue;
+      const dx = b.x - player.x, dy = b.y - player.y, rr = b.radius * c.crushRadiusMult + player.radius * 0.6;
+      if (dx * dx + dy * dy < rr * rr) this.crush(b, player);
     }
   }
 
@@ -158,7 +154,8 @@ export class CorpseManager {
       if (src && meta && meta.corpseFrames) {
         const rect = meta.corpseFrames[b.variant % meta.corpseFrames.length];
         const [w, h] = b.displaySize(rect);
-        ctx.scale(b.flip, 1);
+        const [sx, sy] = b.crushScale();
+        ctx.scale(b.flip * sx, sy);
         ctx.drawImage(src, rect[0], rect[1], rect[2], rect[3], -w / 2, -h / 2, w, h);
       } else {
         ctx.fillStyle = `rgba(${BLOOD[b.blood].dark.join(', ')}, 0.85)`;
