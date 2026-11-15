@@ -1,14 +1,20 @@
 // js/sprites.js — Реєстр спрайтів і текстур (підтримка часткових асетів + підготовка під PixiJS)
 
+import { sliceSheet } from './spriteSlicer.js';
+
 // Кадри тіла (купа решток) у листах ворогів 1312×1199: 3-й ряд, останні дві колонки.
 // Явні прямокутники [x, y, w, h], бо AI-листи не лягають на рівну сітку 6×4.
 const CORPSE_FRAMES = [[845, 515, 245, 335], [1080, 515, 232, 335]];
+
+// Ряди листів ворогів: 0 — idle (6), 1 — ходьба (6), 2 — атака ×4 + 2 купи решток, 3 — 8 напрямків
+// у порядку S, SW, W, NW, N, NE, E, SE. Робот: 0 — idle, 1 — їзда вбік (праворуч), 2 — емоції, 3 — 8 напрямків S, SE, E, NE, N, NW, W, SW.
+const ENEMY_LAYOUT = [6, 6, 6, 8];
 
 export const SPRITE_MANIFEST = {
   robot: {
     paths: ['assets/sprites/robot.png'],
     chromaKeyWhite: true,
-    meta: { cols: 7, moveCols: 8, rows: 4, drawSize: 54 }
+    meta: { cols: 7, moveCols: 8, rows: 4, drawSize: 54, layout: [7, 7, 7, 8] }
   },
   tile_wasteland: {
     paths: ['assets/tiles/tile_wasteland.png', 'assets/sprites/tile_wasteland.png'],
@@ -20,10 +26,10 @@ export const SPRITE_MANIFEST = {
   },
 
   // Вороги та бос
-  enemy_sprout:      { paths: ['assets/sprites/enemy_sprout.png'],      chromaKeyWhite: true, meta: { cols: 6, rows: 4, corpseFrames: CORPSE_FRAMES } },
-  enemy_dasher:      { paths: ['assets/sprites/enemy_dasher.png'],      chromaKeyWhite: true, meta: { cols: 6, rows: 4, corpseFrames: CORPSE_FRAMES } },
-  enemy_stalker:     { paths: ['assets/sprites/enemy_stalker.png'],     chromaKeyWhite: true, meta: { cols: 6, rows: 4, corpseFrames: CORPSE_FRAMES } },
-  enemy_warden:      { paths: ['assets/sprites/boss_warden.png'],       chromaKeyWhite: true, meta: { cols: 6, rows: 4, corpseFrames: CORPSE_FRAMES } },
+  enemy_sprout:      { paths: ['assets/sprites/enemy_sprout.png'],      chromaKeyWhite: true, meta: { cols: 6, rows: 4, corpseFrames: CORPSE_FRAMES, layout: ENEMY_LAYOUT } },
+  enemy_dasher:      { paths: ['assets/sprites/enemy_dasher.png'],      chromaKeyWhite: true, meta: { cols: 6, rows: 4, corpseFrames: CORPSE_FRAMES, layout: ENEMY_LAYOUT } },
+  enemy_stalker:     { paths: ['assets/sprites/enemy_stalker.png'],     chromaKeyWhite: true, meta: { cols: 6, rows: 4, corpseFrames: CORPSE_FRAMES, layout: ENEMY_LAYOUT } },
+  enemy_warden:      { paths: ['assets/sprites/boss_warden.png'],       chromaKeyWhite: true, meta: { cols: 6, rows: 4, corpseFrames: CORPSE_FRAMES, layout: ENEMY_LAYOUT } },
 
   // Світ та інтерактивні об'єкти
   chest:             { paths: ['assets/sprites/chest.png'],             chromaKeyWhite: true, meta: { cols: 4, rows: 3 } },
@@ -42,6 +48,7 @@ export class SpriteManager {
     this.manifest = manifest;
     this.images = {};
     this.processedCanvases = {};
+    this.frameRects = {}; // key → rows[r][c] = {x,y,w,h} (spriteSlicer)
     this.patterns = {};
     this.failedKeys = new Set();
     this.loadedCount = 0;
@@ -95,6 +102,14 @@ export class SpriteManager {
   }
 
   processImage(key, img, entry) {
+    this.processPixels(key, img, entry);
+    const layout = entry.meta && entry.meta.layout;
+    if (layout && this.processedCanvases[key] && this.processedCanvases[key].getContext) {
+      this.frameRects[key] = sliceSheet(this.processedCanvases[key], layout);
+    }
+  }
+
+  processPixels(key, img, entry) {
     if (!img.width || !img.height) return;
 
     const offCanvas = document.createElement('canvas');
@@ -144,6 +159,10 @@ export class SpriteManager {
 
   getSource(key) {
     return this.has(key) ? this.processedCanvases[key] : null;
+  }
+
+  getFrameRects(key) {
+    return this.frameRects[key] || null;
   }
 
   getMeta(key) {

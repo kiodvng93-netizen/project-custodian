@@ -2,6 +2,11 @@
 
 import { SpritePool } from './pixiCore.js';
 import { PixiSpriteAtlas } from './pixiSpriteAtlas.js';
+import { syncEnemies } from './pixiEnemies.js';
+
+// Робот: піксель листа → світ (≈ 48 px заввишки при growthScale 1); ноги на player.y + ROBOT_FEET
+const ROBOT_K = 0.21;
+const ROBOT_FEET = 19;
 
 export class PixiEntitiesRenderer {
   constructor(pixi, atlas = null) {
@@ -52,7 +57,7 @@ export class PixiEntitiesRenderer {
     if (state.corpseManager) this.syncCorpses(state.corpseManager.corpses, state.spriteManager, vl, vr, vt, vb);
     if (state.pickupManager) this.syncPickups(state.pickupManager.pickups, vl, vr, vt, vb, nowSec);
     if (state.gibManager) this.syncGibs(state.gibManager.gibs, vl, vr, vt, vb);
-    if (state.enemyManager) this.syncEnemies(state.enemyManager.enemies, state.spriteManager, vl, vr, vt, vb, nowSec);
+    if (state.enemyManager) syncEnemies(this, state.enemyManager.enemies, state.spriteManager, vl, vr, vt, vb, nowSec);
     if (state.player) this.syncPlayer(state.player, state.spriteManager, nowSec);
 
     this.shadowPool.endFrame();
@@ -113,12 +118,27 @@ export class PixiEntitiesRenderer {
 
     const frame = this.atlas.getRobotFrame(spriteManager, player, nowSec);
     if (frame) {
+      // Пропорції кадру зберігаємо (раніше квадрат 54×54 розтягував робота вшир)
       const s = this.entityPool.acquire(frame.tex);
-      const sz = 54 * gScale;
-      s.position.set(player.x, player.y - 6 * gScale + frame.bob);
-      s.width = sz; s.height = sz;
+      const k = ROBOT_K * gScale;
+      s.anchor.set(0.5, 1);
+      s.position.set(player.x, player.y + ROBOT_FEET * gScale + frame.bob);
+      s.scale.set(k * frame.flip, k);
       s.alpha = blinkAlpha;
       s.zIndex = player.y;
+      // Спалах отриманого удару: червоно-білий силует поверх
+      if (player.hurtFlash > 0) {
+        const sil = this.atlas.getSilhouette(spriteManager, 'robot', frame.row, frame.col);
+        if (sil) {
+          const f = this.entityPool.acquire(sil);
+          f.anchor.set(0.5, 1);
+          f.position.copyFrom(s.position);
+          f.scale.copyFrom(s.scale);
+          f.tint = 0xff5a5a;
+          f.alpha = Math.min(1, player.hurtFlash / 0.2) * 0.8;
+          f.zIndex = player.y + 0.001;
+        }
+      }
     } else {
       const s = this.entityPool.acquire(this.pixi.getTexture('hex'));
       s.position.set(player.x, player.y);
@@ -163,83 +183,18 @@ export class PixiEntitiesRenderer {
     }
   }
 
-  syncEnemies(enemies, spriteManager, vl, vr, vt, vb, nowSec) {
-    const shadowTex = this.pixi.getTexture('shadow');
-    const whiteTex = this.pixi.getTexture('white');
-
-    for (let i = 0; i < enemies.length; i++) {
-      const e = enemies[i];
-      if (!e.alive || e.x < vl || e.x > vr || e.y < vt || e.y > vb) continue;
-
-      const spriteKey = `enemy_${e.typeKey}`;
-      const hasSprite = spriteManager && spriteManager.has(spriteKey);
-
-      const sh = this.shadowPool.acquire(shadowTex);
-      sh.position.set(e.x, e.y + e.radius * 0.62);
-      sh.width = e.radius * 1.45;
-      sh.height = e.radius * 0.55;
-      sh.alpha = 0.72;
-
-      // Еліта (тривога трюму): золоте кільце під ногами
-      if (e.isElite) {
-        const ring = this.shadowPool.acquire(this.pixi.getTexture('ring'));
-        ring.position.set(e.x, e.y + e.radius * 0.5);
-        ring.width = e.radius * 2.4;
-        ring.height = e.radius * 1.0;
-        ring.tint = 0xf6e05e;
-        ring.alpha = 0.8;
-      }
-
-      if (hasSprite) {
-        let row = 0;
-        if (e.typeKey === 'warden' && (e.isTelegraphing || e.isCharging)) row = 2;
-        const col = Math.floor(nowSec * 8 + i) % 6;
-        const tex = this.atlas.getFrame(spriteManager, spriteKey, row, col);
-
-        const s = this.entityPool.acquire(tex);
-        const scaleMult = e.typeKey === 'warden' ? 3.2 : e.typeKey === 'stalker' ? 2.9 : 3.0;
-        const boost = (e.typeKey === 'warden' && e.isCharging) ? 1.15 : 1.0;
-        const drawSz = e.radius * scaleMult * boost;
-
-        s.position.set(e.x, e.y - e.radius * 0.2);
-        s.width = drawSz;
-        s.height = drawSz;
-        s.zIndex = e.y;
-
-        if (e.hitFlashTimer > 0) s.tint = 0xff7777;
-        else if (e.isElite) s.tint = 0xffd27a;
-        else if (e.typeKey === 'warden' && !e.isAwakened) s.tint = 0x777799;
-        else if (e.typeKey === 'warden' && e.isTelegraphing) s.tint = Math.floor(nowSec * 12) % 2 === 0 ? 0xffaaaa : 0xffffff;
-      } else {
-        const tex = e.typeKey === 'dasher'
-          ? this.pixi.getTexture('triangle')
-          : e.typeKey === 'warden' ? this.pixi.getTexture('octagon') : this.pixi.getTexture('circle_outline');
-        const s = this.entityPool.acquire(tex);
-        const boost = (e.typeKey === 'warden' && e.isCharging) ? 1.18 : 1.0;
-        s.position.set(e.x, e.y);
-        s.width = e.radius * 2 * boost;
-        s.height = e.radius * 2 * boost;
-        s.tint = e.hitFlashTimer > 0 ? 0xffffff : e.isElite ? 0xecc94b : e.color;
-        s.zIndex = e.y;
-      }
-
-      if (e.health < e.maxHealth) {
-        const barW = e.radius * 2;
-        const by = e.y - e.radius * (hasSprite ? 1.35 : 1.0) - 6;
-        const bg = this.entityPool.acquire(whiteTex);
-        bg.position.set(e.x, by);
-        bg.width = barW; bg.height = 3;
-        bg.tint = 0x000000; bg.alpha = 0.6;
-        bg.zIndex = e.y + 0.02;
-
-        const r = Math.max(0, e.health / e.maxHealth);
-        const fill = this.entityPool.acquire(whiteTex);
-        fill.position.set(e.x - (barW * 0.5) * (1 - r), by);
-        fill.width = Math.max(0.1, barW * r); fill.height = 3;
-        fill.tint = 0xfc8181;
-        fill.zIndex = e.y + 0.03;
-      }
-    }
+  // Фолбек без спрайт-листа: прості фігури
+  syncEnemyFallback(e) {
+    const tex = e.typeKey === 'dasher'
+      ? this.pixi.getTexture('triangle')
+      : e.typeKey === 'warden' ? this.pixi.getTexture('octagon') : this.pixi.getTexture('circle_outline');
+    const s = this.entityPool.acquire(tex);
+    const boost = (e.typeKey === 'warden' && e.isCharging) ? 1.18 : 1.0;
+    s.position.set(e.x, e.y);
+    s.width = e.radius * 2 * boost;
+    s.height = e.radius * 2 * boost;
+    s.tint = e.hitFlashTimer > 0 ? 0xffffff : e.isTitan ? 0xff0055 : e.isElite ? 0xecc94b : e.color;
+    s.zIndex = e.y;
   }
 
   syncPickups(pickups, vl, vr, vt, vb, nowSec) {
@@ -283,11 +238,12 @@ export class PixiEntitiesRenderer {
       sh.height = g.size * 0.7 * shadowScale;
       sh.alpha = shadowScale * 0.7;
 
+      // Кувиркання: висота спрайта «дихає» з фазою перевороту (фейкове 3D)
       const tex = g.shape === 'shard' ? triTex : g.shape === 'plate' ? whiteTex : circleTex;
       const s = this.entityPool.acquire(tex);
       s.position.set(g.x, g.y - g.z);
       s.width = g.size * 1.6;
-      s.height = g.shape === 'plate' ? g.size : g.size * 1.6;
+      s.height = (g.shape === 'plate' ? g.size : g.size * 1.6) * g.flip;
       s.rotation = g.angle;
       s.tint = g.color;
       s.zIndex = g.y;

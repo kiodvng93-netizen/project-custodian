@@ -168,6 +168,7 @@ export class Player {
 
     this.health = Math.max(0, this.health - amount);
     this.invulnerableTimer = CONFIG.PLAYER.invulnOnDamage;
+    this.hurtFlash = 0.2; // лише для рендеру: спалах отриманого удару
     Telemetry.metrics.damageTaken += amount;
     this.pushCrowdBack(CONFIG.PLAYER.pushbackRadius, CONFIG.PLAYER.pushbackForce);
     if (state.camera) state.camera.addTrauma(CONFIG.JUICE.trauma.playerHit);
@@ -283,6 +284,7 @@ export class Player {
     }
     if (this.health < this.maxHealth) this.health = Math.min(this.maxHealth, this.health + this.healthRegenRate * dt);
     if (this.invulnerableTimer > 0) this.invulnerableTimer -= dt;
+    if (this.hurtFlash > 0) this.hurtFlash -= dt;
   }
 
   render(ctx) {

@@ -1,7 +1,9 @@
 // js/gore.js — Кров і бризки в стилі Diablo / Path of Exile: земля фарбується червоним, зеленим, синім
-// Малює в чанки декалей (DecalManager.paintOnWorld). Без залежностей від світу/ворогів.
+// Малює в чанки декалей (DecalManager.paintOnWorld). Пензлі — goreBrush.js, сліди гусениць — goreTracks.js.
 
 import { CONFIG } from './config.js';
+import { rgba, makeRng, newSeed, lumpyBlob, blob, brokenStreak, smearSegment, smallSplat } from './goreBrush.js';
+import { registerFreshPool } from './goreTracks.js';
 
 // Палітри крові (RGB): dark — запечена кров/контур, base — свіжа, bright — мокрий відблиск
 export const BLOOD = {
@@ -20,26 +22,9 @@ export function bloodFor(enemy) {
   return ENEMY_BLOOD[enemy.typeKey] || 'corrupt';
 }
 
-const rgba = (c, a) => `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${a})`;
 const rand = (a, b) => a + Math.random() * (b - a);
 
-function blob(ctx, x, y, r) {
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function streak(ctx, x, y, angle, len, width) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.beginPath();
-  ctx.ellipse(len * 0.5, 0, len * 0.5, width * 0.5, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-}
-
-// Пляма смерті: напівпрозора «просочена» пляма → темна калюжа → свіжа кров → смуги й дрібні бризки
+// Пляма смерті: напівпрозора «просочена» пляма → темна калюжа → свіжа кров → рвані смуги й бризки
 // по вектору удару. power: 1 = звичайна смерть; більше — надлишковий урон, еліта, бос.
 export function paintSplatter(decals, x, y, { blood = 'corrupt', radius = 18, dirX = 0, dirY = 0, power = 1 } = {}) {
   if (!decals) return;
@@ -47,9 +32,10 @@ export function paintSplatter(decals, x, y, { blood = 'corrupt', radius = 18, di
   const R = radius * power * CONFIG.GORE.splatterScale;
   const hasDir = dirX !== 0 || dirY !== 0;
   const dirA = hasDir ? Math.atan2(dirY, dirX) : Math.random() * Math.PI * 2;
-  const reach = R * (hasDir ? 4.6 : 2.8);
+  const reach = R * (hasDir ? 4.9 : 3.0);
 
-  // Геометрія один раз — малюємо однаково в кожен зачеплений чанк
+  // Геометрія один раз — малюємо однаково в кожен зачеплений чанк (сід для нерівних країв)
+  const seed = newSeed();
   const pool = [];
   for (let i = 0, n = 4 + Math.floor(Math.random() * 3); i < n; i++) {
     const a = Math.random() * Math.PI * 2, d = rand(0, R * 0.45);
@@ -57,7 +43,9 @@ export function paintSplatter(decals, x, y, { blood = 'corrupt', radius = 18, di
   }
   const streaks = [];
   for (let i = 0, n = hasDir ? 4 + Math.floor(Math.random() * 4) : 2; i < n; i++) {
-    streaks.push([dirA + rand(-0.4, 0.4), R * rand(1.8, 4.2), R * rand(0.07, 0.15)]);
+    const a = dirA + rand(-0.45, 0.45);
+    const start = R * rand(0.2, 0.5);
+    streaks.push([Math.cos(a) * start, Math.sin(a) * start, a, R * rand(1.5, 3.9), R * rand(0.16, 0.3)]);
   }
   const drops = [];
   const dropCount = Math.round(16 + 10 * Math.min(2, power));
@@ -71,22 +59,18 @@ export function paintSplatter(decals, x, y, { blood = 'corrupt', radius = 18, di
   registerFreshPool(x + Math.cos(dirA) * R * 0.3, y + Math.sin(dirA) * R * 0.3, R * 1.1, blood);
 
   decals.paintOnWorld(x, y, reach + R, (ctx, lx, ly) => {
-    // 1. просочена в ґрунт пляма — м'який край
-    ctx.fillStyle = rgba(pal.base, 0.22);
-    for (const [px, py, r] of pool) blob(ctx, lx + px, ly + py, r * 1.45);
+    const rng = makeRng(seed);
+    // 1. просочена в ґрунт пляма — м'який нерівний край
+    ctx.fillStyle = rgba(pal.base, 0.2);
+    for (const [px, py, r] of pool) lumpyBlob(ctx, lx + px, ly + py, r * 1.45, rng, 0.45);
     // 2. темна калюжа
     ctx.fillStyle = rgba(pal.dark, 0.88);
-    for (const [px, py, r] of pool) blob(ctx, lx + px, ly + py, r);
+    for (const [px, py, r] of pool) lumpyBlob(ctx, lx + px, ly + py, r, rng, 0.4);
     // 3. свіжа кров у центрі калюжі
     ctx.fillStyle = rgba(pal.base, 0.82);
-    for (const [px, py, r] of pool) blob(ctx, lx + px * 0.8, ly + py * 0.8, r * 0.68);
-    // 4. смуги від удару: темний край + свіжа середина
-    for (const [a, len, w] of streaks) {
-      ctx.fillStyle = rgba(pal.dark, 0.75);
-      streak(ctx, lx, ly, a, len, w * 1.5);
-      ctx.fillStyle = rgba(pal.base, 0.8);
-      streak(ctx, lx, ly, a, len * 0.92, w * 0.8);
-    }
+    for (const [px, py, r] of pool) lumpyBlob(ctx, lx + px * 0.8, ly + py * 0.8, r * 0.68, rng, 0.4);
+    // 4. рвані смуги від удару
+    for (const [sx, sy, a, len, w] of streaks) brokenStreak(ctx, lx + sx, ly + sy, a, len, w, rng, pal.dark, pal.base, 0.82);
     // 5. бризки
     for (const [px, py, s, alpha, dark] of drops) {
       ctx.fillStyle = rgba(dark ? pal.dark : pal.base, alpha);
@@ -101,7 +85,7 @@ export function paintSplatter(decals, x, y, { blood = 'corrupt', radius = 18, di
   });
 }
 
-// Дрібний бризок при влучанні (не смерть): смуга й кілька крапель за спину ворога
+// Дрібний бризок при влучанні (не смерть): рвана смуга й кілька крапель за спину ворога
 export function paintSpurt(decals, x, y, { blood = 'corrupt', radius = 10, dirX = 0, dirY = 0 } = {}) {
   if (!decals) return;
   const pal = BLOOD[blood] || BLOOD.corrupt;
@@ -112,12 +96,11 @@ export function paintSpurt(decals, x, y, { blood = 'corrupt', radius = 10, dirX 
     const a = dirA + rand(-0.5, 0.5), d = R * rand(0.6, 2.8);
     drops.push([Math.cos(a) * d, Math.sin(a) * d, Math.max(1, R * rand(0.07, 0.18)), rand(0.55, 0.85)]);
   }
-  const sA = dirA + rand(-0.2, 0.2), sLen = R * rand(1.4, 2.6), sW = R * rand(0.08, 0.14);
-  decals.paintOnWorld(x, y, R * 3, (ctx, lx, ly) => {
-    ctx.fillStyle = rgba(pal.dark, 0.7);
-    streak(ctx, lx, ly, sA, sLen, sW * 1.5);
-    ctx.fillStyle = rgba(pal.base, 0.8);
-    streak(ctx, lx, ly, sA, sLen * 0.9, sW * 0.8);
+  const sA = dirA + rand(-0.2, 0.2), sLen = R * rand(1.3, 2.4), sW = R * rand(0.18, 0.28);
+  const seed = newSeed();
+  decals.paintOnWorld(x, y, R * 3.2, (ctx, lx, ly) => {
+    const rng = makeRng(seed);
+    brokenStreak(ctx, lx, ly, sA, sLen, sW, rng, pal.dark, pal.base, 0.78);
     for (const [px, py, s, alpha] of drops) {
       ctx.fillStyle = rgba(pal.base, alpha);
       blob(ctx, lx + px, ly + py, s);
@@ -125,75 +108,38 @@ export function paintSpurt(decals, x, y, { blood = 'corrupt', radius = 10, dirX 
   });
 }
 
-// Мазок від уламка, що ковзає по землі
+// Мазок від тіла, що ковзає по землі (corpses.js): нерівна пляма замість чистого кола
 export function paintSmear(decals, x, y, blood, size) {
   if (!decals) return;
   const pal = BLOOD[blood] || BLOOD.corrupt;
+  const seed = newSeed();
   decals.paintOnWorld(x, y, size * 1.5, (ctx, lx, ly) => {
+    const rng = makeRng(seed);
     ctx.fillStyle = rgba(pal.dark, 0.7);
-    blob(ctx, lx, ly, size * 0.5);
+    lumpyBlob(ctx, lx, ly, size * 0.5, rng, 0.5);
     ctx.fillStyle = rgba(pal.base, 0.75);
-    blob(ctx, lx, ly, size * 0.32);
+    lumpyBlob(ctx, lx, ly, size * 0.32, rng, 0.5);
   });
 }
 
-// ── Сліди робота у свіжій крові ────────────────────────────────────────────────
-// Пам'ятаємо останні калюжі (кільцевий буфер); проїзд крізь свіжу забруднює гусениці
-// на TRACKS.trailLength пікселів: відбитки кольору тієї крові, що бліднуть.
-
-const freshPools = [];
-let poolCursor = 0;
-const trail = { blood: null, left: 0, dist: 0, checkTimer: 0 };
-
-function registerFreshPool(x, y, r, blood) {
-  const entry = { x, y, r2: r * r, blood, t: performance.now() };
-  const max = CONFIG.TRACKS.maxFreshPools;
-  if (freshPools.length < max) freshPools.push(entry);
-  else { freshPools[poolCursor] = entry; poolCursor = (poolCursor + 1) % max; }
-}
-
-export function resetGore() {
-  freshPools.length = 0;
-  poolCursor = 0;
-  trail.blood = null; trail.left = 0; trail.dist = 0; trail.checkTimer = 0;
-}
-
-function paintTreads(decals, x, y, angle, blood, strength, halfWidth) {
-  const pal = BLOOD[blood] || BLOOD.corrupt;
-  const nx = -Math.sin(angle), ny = Math.cos(angle);
-  decals.paintOnWorld(x, y, halfWidth + 8, (ctx, lx, ly) => {
-    ctx.fillStyle = rgba(pal.base, 0.2 + 0.55 * strength);
-    for (const side of [-1, 1]) {
-      ctx.save();
-      ctx.translate(lx + nx * halfWidth * side, ly + ny * halfWidth * side);
-      ctx.rotate(angle);
-      ctx.fillRect(-4.5, -2.5, 9, 5);
-      ctx.restore();
-    }
-  });
-}
-
-export function updateRobotTracks(decals, player, dt) {
+// Мазок уламка між двома точками: рвана, нерівна смуга; ink 0..1 — скільки крові ще на уламку
+export function paintGibSmear(decals, x0, y0, x1, y1, blood, width, ink, phase = 0) {
   if (!decals) return;
-  const T = CONFIG.TRACKS;
-  trail.checkTimer -= dt;
-  if (trail.checkTimer <= 0) {
-    trail.checkTimer = 0.1;
-    const now = performance.now(), maxAge = T.freshBloodSeconds * 1000;
-    for (let i = 0; i < freshPools.length; i++) {
-      const p = freshPools[i];
-      if (now - p.t > maxAge) continue;
-      const dx = player.x - p.x, dy = player.y - p.y;
-      if (dx * dx + dy * dy <= p.r2) { trail.blood = p.blood; trail.left = T.trailLength; break; }
-    }
-  }
-  if (trail.left <= 0) return;
-  const step = Math.hypot(player.vx, player.vy) * dt;
-  if (step <= 0) return;
-  trail.dist += step;
-  trail.left -= step;
-  if (trail.dist >= T.stepPx) {
-    trail.dist = 0;
-    paintTreads(decals, player.x, player.y, Math.atan2(player.vy, player.vx), trail.blood, Math.max(0, trail.left / T.trailLength), player.radius * 0.55);
-  }
+  const pal = BLOOD[blood] || BLOOD.corrupt;
+  const seed = newSeed();
+  const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+  decals.paintOnWorld(mx, my, Math.hypot(x1 - x0, y1 - y0) * 0.5 + width * 1.5, (ctx, lx, ly) => {
+    const ox = lx - mx, oy = ly - my;
+    smearSegment(ctx, x0 + ox, y0 + oy, x1 + ox, y1 + oy, width, ink, makeRng(seed), pal, phase);
+  });
+}
+
+// «Шльоп» уламка: при відскоку від землі і там, де мазок закінчився
+export function paintGibSplat(decals, x, y, r, angle, blood, power = 1) {
+  if (!decals) return;
+  const pal = BLOOD[blood] || BLOOD.corrupt;
+  const seed = newSeed();
+  decals.paintOnWorld(x, y, r * (3 + power * 1.6), (ctx, lx, ly) => {
+    smallSplat(ctx, lx, ly, r, angle, makeRng(seed), pal, power);
+  });
 }

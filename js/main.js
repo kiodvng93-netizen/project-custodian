@@ -6,7 +6,7 @@ import { Telemetry } from './telemetry.js';
 import { DecalManager } from './decals.js';
 import { GibManager } from './gibs.js';
 import { CorpseManager } from './corpses.js';
-import { updateRobotTracks, resetGore } from './gore.js';
+import { updateRobotTracks, resetGore } from './goreTracks.js';
 import { SpriteManager } from './sprites.js';
 import { PickupManager } from './pickups.js';
 import { renderWorldGrid, renderSanctuaryHub } from './render/environment.js';

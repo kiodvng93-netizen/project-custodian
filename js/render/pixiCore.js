@@ -29,6 +29,7 @@ export class SpritePool {
     sprite.tint = 0xffffff;
     sprite.rotation = 0;
     sprite.scale.set(1);
+    sprite.anchor.set(0.5);
     sprite.blendMode = 'normal';
     sprite.zIndex = 0;
     this.cursor++;
@@ -128,6 +129,11 @@ export class PixiCore {
     this.bakeTexture('shadow', (g) => {
       g.ellipse(0, 0, 24, 10).fill({ color: 0x000000, alpha: 0.12 });
       g.ellipse(0, 0, 17, 7).fill({ color: 0x000000, alpha: 0.16 });
+    });
+
+    // М'яке сяйво (аури, підсвітка): концентричні кола з малою прозорістю ≈ радіальний градієнт
+    this.bakeTexture('glow', (g) => {
+      for (let i = 10; i >= 1; i--) g.circle(0, 0, 3.2 * i).fill({ color: 0xffffff, alpha: 0.1 });
     });
 
     this.bakeTexture('diamond', (g) => {

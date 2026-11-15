@@ -56,6 +56,10 @@ export class Enemy {
     this.chargeVy = 0;
     this.lastHitSourceX = undefined;
     this.lastHitSourceY = undefined;
+    // Лише для рендеру: власна фаза анімації (а не індекс у масиві) і згладжений курс
+    this.animSeed = Math.random() * 10;
+    this.renderFacing = undefined;
+    this.renderFacingT = 0;
   }
 
   // Еліта «на запах скрапу»: товща, сильніша, більша, золотий контур, більше XP
@@ -115,7 +119,8 @@ export class Enemy {
     if (!this.alive) return;
     if (this.invulnerable) { this.hitFlashTimer = 0.06; return; }
     this.health -= amount;
-    this.hitFlashTimer = 0.12;
+    // Спалах лише від відчутного удару: DoT/контактний урон щокадру тримав би ворога вічно білим
+    if (amount >= CONFIG.GORE.hitFlashMinDamage) this.hitFlashTimer = 0.12;
     if (sourceX !== undefined && sourceY !== undefined) {
       this.lastHitSourceX = sourceX;
       this.lastHitSourceY = sourceY;
