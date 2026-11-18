@@ -10,7 +10,7 @@ Short on purpose. Decisions only. Details and status live in `PROJECT_STATE.md`.
 - **Terraform the world over many runs.** Evac ends a run; it is not the goal.
 
 ## Order of work
-Visuals and readability first (they also fix the scale problem, so balance numbers are tuned after), then balance, then sound, content, progression, Ring 2. Not yet built are marked (later).
+Updated 18.11.2026: the core loop is close to done, and the visual and readability pass has shipped. Next: sound and music (audio generated with Gemini), then graphics, then a slower progression pace (Vampire Survivors-like: long runs, smooth power growth, still hard), then content, progression, Ring 2. Items not built yet are marked (later).
 
 ## Visuals
 - Dark, calm, low-contrast ground; the robot is the brightest thing on screen. Detail is wasted at 36-100 px: use silhouette, color, glow.
