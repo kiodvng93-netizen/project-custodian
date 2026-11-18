@@ -4,6 +4,7 @@ import { CONFIG, MetaProgression, saveMetaProgression } from './config.js';
 import { state, triggerHitStop, spawnShockwave } from './state.js';
 import { Telemetry } from './telemetry.js';
 import { endRun } from './run.js';
+import { audio } from './audio.js';
 
 export class Player {
   constructor(x = 0, y = 0) {
@@ -131,6 +132,7 @@ export class Player {
 
     if (state.camera) state.camera.addTrauma(CONFIG.JUICE.trauma.dash || 0.2);
     spawnShockwave(this.x, this.y, { radius: 8, maxRadius: 55, color: '#63b3ed', speed: 280, lineWidth: 3.5 });
+    audio.play('dash');
   }
 
   // Повертає кількість отриманих рівнів (одна велика порція XP може дати кілька)
@@ -160,6 +162,7 @@ export class Player {
       this.shieldTimer = 0;
       Telemetry.metrics.shieldHitsAbsorbed++;
       this.pushCrowdBack(80, 160);
+      audio.play('shield_break');
       spawnShockwave(this.x, this.y, { radius: 15, maxRadius: 150, color: '#4299e1', speed: 420, lineWidth: 6 });
       if (state.camera) state.camera.addTrauma(CONFIG.JUICE.trauma.shieldBreak);
       triggerHitStop(CONFIG.JUICE.hitStop.shieldBreak);
@@ -169,6 +172,7 @@ export class Player {
     this.health = Math.max(0, this.health - amount);
     this.invulnerableTimer = CONFIG.PLAYER.invulnOnDamage;
     this.hurtFlash = 0.2; // лише для рендеру: спалах отриманого удару
+    audio.play('player_hit');
     Telemetry.metrics.damageTaken += amount;
     this.pushCrowdBack(CONFIG.PLAYER.pushbackRadius, CONFIG.PLAYER.pushbackForce, CONFIG.PLAYER.pushbackStun);
     spawnShockwave(this.x, this.y, { radius: 12, maxRadius: CONFIG.PLAYER.pushbackRadius, color: '#fc8181', speed: 520, lineWidth: 4 });
@@ -201,6 +205,7 @@ export class Player {
   die(outcome = 'death') {
     if (state.runEnd) return;
     Telemetry.metrics.deaths++;
+    if (outcome === 'death') audio.play('player_death');
     const unbanked = Telemetry.metrics.resourcesCollected.techScrap;
     const rates = CONFIG.ECONOMY.deathLossRates || [0.50, 0.40, 0.25];
     const rank = Math.min(rates.length - 1, (MetaProgression.perks && MetaProgression.perks.cargoSecurity) || 0);
@@ -285,6 +290,7 @@ export class Player {
         this.shieldTimer = 0;
       }
     }
+    if (this.health > 0 && this.health / this.maxHealth < 0.3) audio.play('low_hp_warning');
     if (this.health < this.maxHealth) this.health = Math.min(this.maxHealth, this.health + this.healthRegenRate * dt);
     if (this.invulnerableTimer > 0) this.invulnerableTimer -= dt;
     if (this.hurtFlash > 0) this.hurtFlash -= dt;

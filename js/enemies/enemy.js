@@ -4,6 +4,7 @@ import { CONFIG } from '../config.js';
 import { state, triggerHitStop, spawnShockwave, spawnFlash } from '../state.js';
 import { BLOOD, bloodFor, paintSplatter, paintSpurt } from '../gore.js';
 import { Telemetry } from '../telemetry.js';
+import { audio } from '../audio.js';
 
 export class Enemy {
   constructor(x, y, typeKey = 'sprout', waveNumber = null) {
@@ -144,6 +145,7 @@ export class Enemy {
       this.isAwakened = true;
       this.animState = 'chase';
       Telemetry.recordEvent('BOSS', 'Hive Warden provoked!');
+      audio.play('warden_awaken', { x: this.x, y: this.y });
     }
     Telemetry.metrics.damageDealt += amount;
     const displayDamage = Math.round(amount);
@@ -152,6 +154,8 @@ export class Enemy {
     }
     if (this.health > 0) {
       this.bleed(amount);
+      // DoT (вогонь) не б'є звуком щокадру: лише відчутні удари
+      if (amount >= CONFIG.GORE.hitFlashMinDamage) audio.play('enemy_hit', { x: this.x, y: this.y });
       return;
     }
     if (this.health <= 0) {
@@ -160,6 +164,9 @@ export class Enemy {
       this.paintDeath(amount);
       Telemetry.metrics.kills++;
       Telemetry.recordEvent('KILL', `${this.name} destroyed!`);
+      const deathId = this.typeKey === 'warden' ? 'enemy_death_warden'
+        : this.isElite ? 'enemy_death_elite' : 'enemy_death_' + this.typeKey;
+      audio.play(deathId, { x: this.x, y: this.y });
       if (this.typeKey === 'warden') {
         spawnShockwave(this.x, this.y, { radius: 25, maxRadius: 280, color: '#f687b3', speed: 420, lineWidth: 9 });
         if (state.camera) state.camera.addTrauma(CONFIG.JUICE.trauma.wardenKill);
@@ -276,6 +283,7 @@ export class Enemy {
       this.windupTimer = sCfg.windupTime;
       this.facingAngle = Math.atan2(dy, dx);
       spawnShockwave(this.x, this.y, { radius: this.radius * 0.7, maxRadius: this.radius + 26, color: '#fc8181', speed: 160, lineWidth: 2.5 });
+      audio.play('stalker_windup', { x: this.x, y: this.y });
       return;
     }
     this.moveWithSeparation(dt, dx, dy, dist, enemies);
@@ -291,6 +299,7 @@ export class Enemy {
         this.isAwakened = true;
         this.animState = 'chase';
         Telemetry.recordEvent('BOSS', 'Hive Warden awakened in lair!');
+        audio.play('warden_awaken', { x: this.x, y: this.y });
       } else return;
     }
     if (this.isCharging) {
@@ -324,6 +333,7 @@ export class Enemy {
     if (this.chargeTimer >= this.chargeCooldown && dist < 700) {
       this.chargeTimer = 0; this.isTelegraphing = true; this.animState = 'windup';
       this.chargeDuration = wCfg.windupTime; this.facingAngle = Math.atan2(dy, dx);
+      audio.play('warden_charge', { x: this.x, y: this.y });
       spawnShockwave(this.x, this.y, { radius: this.radius, maxRadius: this.radius + 55, color: '#f687b3', speed: 210, lineWidth: 3.5 });
       return;
     }

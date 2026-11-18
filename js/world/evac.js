@@ -3,6 +3,7 @@
 import { CONFIG } from '../config.js';
 import { state, spawnShockwave } from '../state.js';
 import { Telemetry } from '../telemetry.js';
+import { audio } from '../audio.js';
 import { Enemy } from '../enemies/enemy.js';
 
 export class EvacBeacon {
@@ -38,6 +39,7 @@ export class EvacBeacon {
     Telemetry.metrics.evacsCalled++;
     if (state.camera) state.camera.addTrauma(0.5);
     spawnShockwave(this.landmark.x, this.landmark.y, { radius: 20, maxRadius: this.holdRadius + 120, color: '#63b3ed', speed: 460, lineWidth: 6 });
+    audio.play('evac_start');
     Telemetry.recordEvent('EVAC', `Evac called! Hold the beacon for ${this.totalTime}s.`);
     this.spawnAmbush(enemyManager);
     return true;

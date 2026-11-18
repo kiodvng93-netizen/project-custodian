@@ -6,6 +6,7 @@ import { CONFIG } from './config.js';
 import { state } from './state.js';
 import { Telemetry } from './telemetry.js';
 import { generateDraftCards } from './weapons/upgrades.js';
+import { audio } from './audio.js';
 
 let cooldown = 0;
 
@@ -17,7 +18,7 @@ export function resetDraftQueue() {
 }
 
 export function queueLevelUps(count) {
-  if (count > 0 && !state.runEnd) state.pendingLevelUps += count;
+  if (count > 0 && !state.runEnd) { state.pendingLevelUps += count; audio.play('level_up'); }
 }
 
 // Викликається щокадру з ігровим dt (поза паузою, Воркшопом і екраном підсумку)
@@ -33,6 +34,7 @@ function openDraft() {
   state.isDrafting = true;
   state.timeScale = CONFIG.DRAFT.bulletTimeScale;
   state.draftCards = generateDraftCards(state.weaponManager, 3);
+  audio.play('draft_open');
   Telemetry.recordEvent('LEVEL', `Upgrade draft (Level ${state.player.level}, ${state.pendingLevelUps} queued)`);
 }
 
@@ -40,6 +42,7 @@ export function selectCard(index) {
   if (!state.isDrafting || !state.draftCards[index]) return;
   const card = state.draftCards[index];
   card.apply();
+  if (!card.isEvolutionCard) audio.play('card_pick'); // для еволюції грає evolveWeapons
   state.player.grow();
   state.isDrafting = false;
   state.draftCards = [];

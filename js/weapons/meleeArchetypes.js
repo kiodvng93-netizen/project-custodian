@@ -2,6 +2,7 @@
 
 import { state } from '../state.js';
 import { findNearestTarget } from './targeting.js';
+import { audio } from '../audio.js';
 
 const CONE_TURN_RATE = 10; // рад/с — швидкість повороту струменя Flamer
 
@@ -96,6 +97,7 @@ export class OrbitalWeapon {
             }
           } else if (!this.hitCooldowns.has(enemy)) {
             enemy.takeDamage(this.cfg.damage * mult, bx, by);
+            audio.play('saw_hit', { x: bx, y: by });
             this.hitCooldowns.set(enemy, this.cfg.hitCooldown || 0.25);
             if (this.cfg.knockback && enemy.alive && !enemy.alarmThresholds) this.knockAway(enemy);
             ctxData.spawnParticles(bx, by);
@@ -111,6 +113,7 @@ export class OrbitalWeapon {
 
       if (canFireLaser && nearestLaser) {
         nearestLaser.takeDamage(this.cfg.damage * mult, bx, by);
+        audio.play('drone_laser', { x: bx, y: by });
         ctxData.spawnParticles(nearestLaser.x, nearestLaser.y);
         this.activeBeams.push({ fromX: bx, fromY: by, toX: nearestLaser.x, toY: nearestLaser.y, color: 'rgba(246, 173, 85,', life: 0.08, maxLife: 0.08 });
       }
@@ -267,6 +270,7 @@ export class ConeWeapon {
         if (diff > Math.PI) diff = Math.PI * 2 - diff;
         if (diff <= halfSpread) {
           enemy.takeDamage(dmg * dt, this.owner.x, this.owner.y);
+          audio.play('flamer_burst', { x: this.owner.x, y: this.owner.y });
           enemy.plasmaBurnTimer = this.cfg.burnDuration;
           enemy.plasmaBurnDmg = this.cfg.burnDamage;
         }
@@ -308,6 +312,7 @@ export class AuraWeapon {
     const radius = this.cfg.radius * this.owner.growthScale;
     this.ringRadius = radius;
     this.ringAlpha = 0.75;
+    audio.play('aura_pulse', { x: this.owner.x, y: this.owner.y });
 
     const dmg = this.cfg.damage * (this.owner.godMode ? 15 : 1);
     collectTargets(this.owner.x, this.owner.y, radius, enemies, this._targets);

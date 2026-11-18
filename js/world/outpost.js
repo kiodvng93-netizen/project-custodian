@@ -3,6 +3,7 @@
 import { CONFIG, MetaProgression, saveMetaProgression } from '../config.js';
 import { state, spawnShockwave } from '../state.js';
 import { Telemetry } from '../telemetry.js';
+import { audio } from '../audio.js';
 import { Enemy } from '../enemies/enemy.js';
 
 export class InsuranceOutpost {
@@ -27,6 +28,7 @@ export class InsuranceOutpost {
     if (state.camera) state.camera.addTrauma(0.35);
     spawnShockwave(this.x, this.y, { radius: 18, maxRadius: 240, color: '#63b3ed', speed: 400, lineWidth: 5 });
     Telemetry.recordEvent('OUTPOST', `Scrap Insurance active! Hold point for ${Math.round(this.totalTime)}s!`);
+    audio.play('outpost_start', { x: this.x, y: this.y });
 
     if (enemyManager && enemyManager.enemies.length < CONFIG.ENEMIES.maxActive) {
       const count = CONFIG.OUTPOST.ambushCount || 8;
@@ -69,6 +71,7 @@ export class InsuranceOutpost {
 
     if (state.camera) state.camera.addTrauma(0.45);
     spawnShockwave(this.x, this.y, { radius: 20, maxRadius: 280, color: '#48bb78', speed: 460, lineWidth: 6 });
+    audio.play('outpost_captured');
     Telemetry.recordEvent('BANK', `Outpost secured! Banked ${carried} + ${bonus} bonus = +${totalBanked} Scrap!`);
   }
 

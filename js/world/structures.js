@@ -3,6 +3,7 @@
 import { CONFIG, MetaProgression } from '../config.js';
 import { state, triggerHitStop, spawnShockwave } from '../state.js';
 import { Telemetry } from '../telemetry.js';
+import { audio } from '../audio.js';
 import { Enemy } from '../enemies/enemy.js';
 
 export class ObstacleWall {
@@ -118,6 +119,7 @@ export class LootChest {
     const chestCfg = CONFIG.CHESTS;
     if (state.camera) state.camera.addTrauma(CONFIG.JUICE.trauma.chestOpen || 0.30);
     spawnShockwave(this.x, this.y, { radius: 10, maxRadius: 80, color: '#ecc94b', speed: 280, lineWidth: 4 });
+    audio.play('chest_open', { x: this.x, y: this.y });
 
     if (state.pickupManager) {
       const scrapCount = chestCfg.minScrap + Math.floor(Math.random() * (chestCfg.maxScrap - chestCfg.minScrap + 1));
@@ -168,6 +170,7 @@ export class Landmark {
     if (state.camera) state.camera.addTrauma(0.65);
     triggerHitStop(0.08);
     Telemetry.recordEvent('TERRAFORM', 'Biosphere Purifier restored! Safe haven created.');
+    audio.play('purifier_restored');
     Telemetry.metrics.resourcesCollected.techScrap += 5;
 
     if (state.pickupManager) {
@@ -212,6 +215,7 @@ export class CorePickup {
       this.alive = false;
       player.carryingCore = true;
       Telemetry.recordEvent('OBJECTIVE', 'Purifier Core retrieved! Deliver to Landmark.');
+      audio.play('core_picked');
     }
   }
 
@@ -278,6 +282,7 @@ export class CorruptedNest {
         state.decalManager.addSplatter(this.x, this.y, { type: 'corrupt', radius: 40, count: 18 });
       }
       Telemetry.recordEvent('WORLD', 'Corrupted Nest Cleansed! Loot vacuum triggered.');
+      audio.play('nest_destroyed', { x: this.x, y: this.y });
 
       if (state.pickupManager) {
         for (let i = 0; i < 6; i++) {
@@ -296,6 +301,7 @@ export class CorruptedNest {
     if (state.camera) state.camera.addTrauma(CONFIG.JUICE.trauma.nestAlarm || 0.35);
     triggerHitStop(CONFIG.JUICE.hitStop.nestAlarm || 0.04);
     spawnShockwave(this.x, this.y, { radius: 15, maxRadius: 110, color: '#e53e3e', speed: 300, lineWidth: 5 });
+    audio.play('nest_alarm', { x: this.x, y: this.y });
 
     if (state.enemyManager && state.enemyManager.enemies.length < CONFIG.ENEMIES.maxActive) {
       const count = this.defenseSwarmCount || 7;

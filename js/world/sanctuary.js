@@ -3,6 +3,7 @@
 import { CONFIG, MetaProgression, saveMetaProgression } from '../config.js';
 import { state, triggerHitStop, spawnShockwave } from '../state.js';
 import { Telemetry } from '../telemetry.js';
+import { audio } from '../audio.js';
 import { Enemy } from '../enemies/enemy.js';
 
 export class SanctuaryHub {
@@ -36,6 +37,7 @@ export class SanctuaryHub {
     if (state.camera) state.camera.addTrauma(0.22);
     spawnShockwave(0, 0, { radius: 18, maxRadius: 150, color: '#ecc94b', speed: 340, lineWidth: 4.5 });
     Telemetry.recordEvent('BANK', `Deposited +${scrap} Tech Scrap into Sanctuary Vault!`);
+    audio.play('scrap_banked');
     return true;
   }
 
@@ -136,6 +138,7 @@ export class SanctuaryHub {
     triggerHitStop(0.10);
     spawnShockwave(0, 0, { radius: 30, maxRadius: 560, color: '#ff0055', speed: 520, lineWidth: 10 });
     Telemetry.recordEvent('BOSS', 'HIVE WRATH: Sanctuary Dome shattered! Invulnerable Titans incoming!');
+    audio.play('hive_wrath');
 
     this.spawnTitanRing(player, enemyManager, 14, 480);
   }
