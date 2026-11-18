@@ -4,6 +4,7 @@ import { CONFIG } from '../config.js';
 import { state, spawnShockwave } from '../state.js';
 import { Projectile, MortarShell } from './projectiles.js';
 import { findNearestTarget } from './targeting.js';
+import { audio } from '../audio.js';
 
 export class ProjectileWeapon {
   constructor(owner, cfg) {
@@ -48,6 +49,7 @@ export class ProjectileWeapon {
           }
         ));
         this.cooldown = this.cfg.fireRate;
+        audio.play('blaster_fire', { x: origin.x, y: origin.y });
       }
     }
 
@@ -56,6 +58,7 @@ export class ProjectileWeapon {
       if (this.salvoTimer >= this.cfg.salvoCooldown) {
         this.salvoTimer = 0;
         spawnShockwave(origin.x, origin.y, { radius: 15, maxRadius: 140, color: '#63b3ed', speed: 440, lineWidth: 4.5 });
+        audio.play('hyperion_salvo', { x: origin.x, y: origin.y });
         if (state.camera) state.camera.addTrauma(CONFIG.JUICE.trauma.hyperionSalvo || 0.32);
 
         const count = this.cfg.salvoCount || 12;
@@ -106,6 +109,7 @@ export class MortarWeapon {
       const mult = this.owner.godMode ? 15 : 1;
       const aim = this.predictLanding(target);
       ctxData.shells.push(new MortarShell(this.owner.x, this.owner.y, aim.x, aim.y, this.cfg, mult));
+      audio.play('mortar_fire', { x: this.owner.x, y: this.owner.y });
       this.cooldown = this.cfg.fireRate;
     }
   }
@@ -196,6 +200,7 @@ export class ChainWeapon {
       this.activeBolts.push({ fromX: current.x, fromY: current.y, toX: next.x, toY: next.y, life: 0.12, maxLife: 0.12 });
       current = next;
     }
+    audio.play('tesla_zap', { x: first.x, y: first.y });
     this.cooldown = this.cfg.fireRate;
   }
 

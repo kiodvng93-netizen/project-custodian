@@ -384,7 +384,9 @@ export const CONFIG = {
 };
 
 const DEFAULT_META_SAVE = {
-  version: 5,
+  version: 6,
+  // Гучність шин і mute (js/audio.js); v5 → v6
+  audio: { master: 0.8, sfx: 1, music: 0.7, ui: 1, muted: false },
   bankedTechScrap: 0,
   perks: {
     chassisArmor: 0,
@@ -418,6 +420,12 @@ function sanitizePatches(list) {
     .filter(p => Number.isFinite(p.x) && Number.isFinite(p.y) && p.r > 0);
 }
 
+function sanitizeAudio(a) {
+  const d = DEFAULT_META_SAVE.audio, src = a || {};
+  const vol = (k) => (Number.isFinite(Number(src[k])) && src[k] !== null ? Math.min(1, Math.max(0, Number(src[k]))) : d[k]);
+  return { master: vol('master'), sfx: vol('sfx'), music: vol('music'), ui: vol('ui'), muted: Boolean(src.muted) };
+}
+
 export function loadMetaProgression() {
   try {
     const raw = localStorage.getItem('custodian_meta_save');
@@ -426,9 +434,11 @@ export function loadMetaProgression() {
     // v2 → v3: додано world (лічильники тераформування), старі сейви починають з нуля
     // v4 → v5: додано world.biomass (старі сейви починають з 0, Хаб не втрачає стадію)
     // v3 → v4: додано world.patches; бракуючі латки за вже очищені гнізда добудовує terraform.js
+    // v5 → v6: додано audio (гучність шин, mute), старі сейви беруть значення за замовчуванням
     const world = parsed.world || {};
     return {
-      version: 5,
+      version: 6,
+      audio: sanitizeAudio(parsed.audio),
       bankedTechScrap: (Number(parsed.bankedTechScrap) || 0) + refundRemovedTracksPerk(parsed),
       perks: {
         chassisArmor: Number(parsed.perks && parsed.perks.chassisArmor) || 0,

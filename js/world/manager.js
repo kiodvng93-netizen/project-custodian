@@ -3,6 +3,7 @@
 import { CONFIG, MetaProgression, saveMetaProgression } from '../config.js';
 import { state, spawnShockwave } from '../state.js';
 import { Telemetry } from '../telemetry.js';
+import { audio } from '../audio.js';
 import { endRun } from '../run.js';
 import { Landmark, CorePickup } from './structures.js';
 import { SanctuaryHub } from './sanctuary.js';
@@ -158,6 +159,7 @@ export class WorldManager {
     saveMetaProgression();
     if (state.camera) state.camera.addTrauma(0.8);
     spawnShockwave(this.landmark.x, this.landmark.y, { radius: 30, maxRadius: 700, color: '#bee3f8', speed: 620, lineWidth: 9 });
+    audio.play('evac_complete');
     Telemetry.recordEvent('EVAC', `Evacuated! Banked ${cargo} + ${bonus} bonus Scrap.`);
     endRun('victory', { banked: cargo + bonus, bonus });
   }
@@ -173,6 +175,7 @@ export class WorldManager {
     m.resourcesCollected.techScrap = 0;
     saveMetaProgression();
     player.x = 0; player.y = 0;
+    audio.play('scrap_banked');
     Telemetry.recordEvent('TRAVEL', `Fast traveled home! Banked ${scrapKept} Scrap (Tax: ${Math.round(taxRate * 100)}%).`);
   }
 

@@ -5,6 +5,7 @@ import { state } from '../state.js';
 import { Telemetry } from '../telemetry.js';
 import { SpatialGrid } from './grid.js';
 import { Enemy } from './enemy.js';
+import { audio } from '../audio.js';
 
 export class EnemyManager {
   constructor() {
@@ -43,7 +44,10 @@ export class EnemyManager {
   // Тривога Вулика: частка від CARGO_PRESSURE.fullAlertScrap незданого скрапу
   updateCargoAlert() {
     const cargo = Telemetry.metrics.resourcesCollected.techScrap;
+    const prev = this.cargoAlert;
     this.cargoAlert = Math.min(1, cargo / CONFIG.CARGO_PRESSURE.fullAlertScrap);
+    // Тривога Вулика перетнула поріг 1/3, 2/3, 1: сигнал (лише вгору)
+    if (Math.floor(this.cargoAlert * 3) > Math.floor(prev * 3) && this.cargoAlert > 0) audio.play('hive_alert');
   }
 
   // Новий ворог хвилі/засідки; з тривогою частина стає елітою
@@ -86,6 +90,7 @@ export class EnemyManager {
       this.waveNumber++;
       this.ambushTriggeredInWave = false;
       Telemetry.recordEvent('WAVE', `Wave ${this.waveNumber} incoming!`);
+      audio.play('wave_surge');
       durations = this.wavePhaseDurations();
     }
 
@@ -108,6 +113,7 @@ export class EnemyManager {
     } else {
       if (this.wavePhase !== 'breather') {
         Telemetry.recordEvent('WAVE', `Breather window (${Math.round(durations.cycle - ebbEnd)}s)`);
+        audio.play('breather_start');
       }
       this.wavePhase = 'breather';
       this.waveIntensity = 0;

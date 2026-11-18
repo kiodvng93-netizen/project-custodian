@@ -44,6 +44,7 @@ import {
 } from './render/runUI.js';
 import { getRunObjective } from './world/objective.js';
 import { canLeaveRunEnd, startNewRun } from './run.js';
+import { audio } from './audio.js';
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -149,20 +150,26 @@ function buyWorkshopPerk(perk) {
     MetaProgression.bankedTechScrap -= cost;
     MetaProgression.perks[perk.key] = rank + 1;
     perk.buy();
+    audio.play('ui_click');
     saveMetaProgression();
     Telemetry.recordEvent('META', `Purchased ${perk.title} Rank ${rank + 1}!`);
   }
 }
 
 window.addEventListener('keydown', (e) => {
+  if (!e.repeat && e.code === 'KeyM') audio.toggleMute();
+  if (e.code === 'Minus' || e.code === 'NumpadSubtract') audio.adjustMaster(-0.1);
+  if (e.code === 'Equal' || e.code === 'NumpadAdd') audio.adjustMaster(0.1);
   if (e.key === CONFIG.ENGINE.debugKey || e.key === CONFIG.ENGINE.altDebugKey) debugHUD.classList.toggle('hidden');
   if (state.runEnd) {
     if (!e.repeat && (e.code === 'Enter' || e.code === 'Space' || e.code === 'KeyE')) startNewRun();
     return;
   }
   if (e.code === 'Escape' || e.code === 'KeyP') {
-    if (!state.isDrafting && !state.isWorkshopOpen) state.isPaused = !state.isPaused;
-    else if (state.isWorkshopOpen) { state.isWorkshopOpen = false; state.timeScale = 1.0; }
+    if (!state.isDrafting && !state.isWorkshopOpen) {
+      state.isPaused = !state.isPaused;
+      audio.play(state.isPaused ? 'ui_pause' : 'ui_resume');
+    } else if (state.isWorkshopOpen) { state.isWorkshopOpen = false; state.timeScale = 1.0; }
   }
   if (e.code === 'KeyG') state.player.godMode = !state.player.godMode;
   const domeBroken = state.worldManager && state.worldManager.sanctuary && state.worldManager.sanctuary.domeBroken;
@@ -207,8 +214,8 @@ window.addEventListener('click', (e) => {
   if (state.runEnd) { startNewRun(); return; }
   if (state.isPaused) {
     const mw = 260, mh = 44, cx = canvas.width / 2, cy = canvas.height / 2;
-    if (e.clientX >= cx - mw / 2 && e.clientX <= cx + mw / 2 && e.clientY >= cy - 30 && e.clientY <= cy - 30 + mh) { state.isPaused = false; return; }
-    if (e.clientX >= cx - mw / 2 && e.clientX <= cx + mw / 2 && e.clientY >= cy + 26 && e.clientY <= cy + 26 + mh) { state.isPaused = false; state.player.die('abort'); return; }
+    if (e.clientX >= cx - mw / 2 && e.clientX <= cx + mw / 2 && e.clientY >= cy - 30 && e.clientY <= cy - 30 + mh) { state.isPaused = false; audio.play('ui_click'); return; }
+    if (e.clientX >= cx - mw / 2 && e.clientX <= cx + mw / 2 && e.clientY >= cy + 26 && e.clientY <= cy + 26 + mh) { audio.play('ui_click'); state.isPaused = false; state.player.die('abort'); return; }
     return;
   }
   if (state.isDrafting) {
@@ -364,6 +371,7 @@ function renderFrame() {
   ctx.fillText(`SANCTUARY VAULT: ${MetaProgression.bankedTechScrap} SCRAP`, 16, 46);
   renderBiomassHUD(ctx, state);
   renderHiveAlertHUD(ctx, canvas, state);
+  audio.renderNote(ctx, canvas);
   if (state.player.godMode) {
     ctx.fillStyle = '#ffd700'; ctx.font = 'bold 13px monospace'; ctx.textAlign = 'left';
     ctx.fillText('[GOD MODE ON: 15x DMG + INVULNERABLE] (Press G)', 16, canvas.height - 40);
@@ -377,6 +385,7 @@ function gameLoop(currentTimestamp) {
   if (!lastTimestamp) lastTimestamp = currentTimestamp;
   let rawDt = Math.min((currentTimestamp - lastTimestamp) / 1000, CONFIG.ENGINE.maxDeltaTime);
   lastTimestamp = currentTimestamp;
+  audio.update(rawDt);
 
   if (state.hitStopTimer > 0) {
     state.hitStopTimer -= rawDt;
@@ -421,6 +430,7 @@ function gameLoop(currentTimestamp) {
 }
 
 (async function boot() {
+  audio.init();
   try {
     await pixi.init(document.getElementById('gameContainer'));
     pixiWorld = new PixiWorldRenderer(pixi);

@@ -3,6 +3,7 @@
 import { CONFIG } from './config.js';
 import { Telemetry } from './telemetry.js';
 import { state, spawnFlash } from './state.js';
+import { audio } from './audio.js';
 
 export class Pickup {
   constructor(x, y, type = 'bio', value = 1) {
@@ -62,12 +63,15 @@ export class Pickup {
       state.plants.onEaten(gained);
       state.damageTexts.push({ x: p.x, y: p.y - p.radius - 18, text: `+${gained} HP`, life: 1.0, color: '#9ae6b4' });
       spawnFlash(p.x, p.y, { radius: 34, tint: 0x9ae6b4, life: 0.28 });
+      audio.play('fruit_eaten');
     } else if (this.type === 'bio') {
       Telemetry.metrics.resourcesCollected.bioEssence += this.value;
       Telemetry.recordEvent('LOOT', `+${this.value} Bio-Essence collected!`);
+      audio.play('xp_pickup', { x: this.x, y: this.y });
     } else {
       Telemetry.metrics.resourcesCollected.techScrap += this.value;
       Telemetry.recordEvent('LOOT', `+${this.value} Tech Scrap collected!`);
+      audio.play('scrap_pickup', { x: this.x, y: this.y });
     }
   }
 

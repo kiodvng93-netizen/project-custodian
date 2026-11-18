@@ -5,6 +5,7 @@
 import { CONFIG, MetaProgression, saveMetaProgression } from '../config.js';
 import { state, spawnShockwave } from '../state.js';
 import { Telemetry } from '../telemetry.js';
+import { audio } from '../audio.js';
 import { earnedPatchCount, placePatchNear, placePatchAnywhere } from './terraformPatches.js';
 
 // Стадія = індекс останнього пройденого порогу; -1 = ділянка ще не відновлена
@@ -178,6 +179,7 @@ export class TerraformSites {
       life: CONFIG.TERRAFORM.toastSeconds,
     };
     Telemetry.recordEvent('TERRAFORM', `Wild patch ${this.patches.length} reclaimed`);
+    audio.play('ground_reclaimed');
   }
 
   // Прогрес латок для Воркшопу
@@ -202,6 +204,7 @@ export class TerraformSites {
       life: CONFIG.TERRAFORM.toastSeconds,
     };
     Telemetry.recordEvent('TERRAFORM', `${site.label} reclaimed to stage ${stage + 1}`);
+    audio.play('ground_reclaimed');
   }
 
   // Біомаса забігу назавжди: зберігаємо й, якщо Хаб пройшов поріг, розростаємо його

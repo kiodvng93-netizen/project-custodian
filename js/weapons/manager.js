@@ -7,6 +7,7 @@ import { WEAPON_ARCHETYPES, EVOLUTIONS, WEAPON_UPGRADES, createRunWeaponConfigs,
 import { GroundZone } from './projectiles.js';
 import { ProjectileWeapon, MortarWeapon, ChainWeapon } from './rangedArchetypes.js';
 import { OrbitalWeapon, ConeWeapon, AuraWeapon } from './meleeArchetypes.js';
+import { audio } from '../audio.js';
 
 export class WeaponManager {
   constructor(owner) {
@@ -96,6 +97,7 @@ export class WeaponManager {
     const evolved = this.createWeapon(evo.resultKey);
     if (evolved) this.slots.push(evolved);
 
+    audio.play('evolution');
     Telemetry.recordEvent('EVOLUTION', `WEAPON EVOLVED: ${evo.name}! Carried ${carried} upgrades. Slot compressed.`);
     return true;
   }
@@ -190,6 +192,7 @@ export class WeaponManager {
       lineWidth: 7
     });
 
+    audio.play('mortar_explode', { x, y, pitch: isMultiKill ? 0.9 : 1 });
     if (state.camera) state.camera.addTrauma(isAsh ? CONFIG.JUICE.trauma.incineratorExplosion : CONFIG.JUICE.trauma.mortarExplosion);
     triggerHitStop(isAsh ? CONFIG.JUICE.hitStop.incineratorExplosion : CONFIG.JUICE.hitStop.mortarExplosion);
 

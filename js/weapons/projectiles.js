@@ -1,6 +1,7 @@
 // js/weapons/projectiles.js — Універсальні снаряди, мортирні міни та наземні зони
 
 import { state } from '../state.js';
+import { audio } from '../audio.js';
 
 export class Projectile {
   constructor(x, y, vx, vy, damage, range, options = {}) {
@@ -41,6 +42,7 @@ export class Projectile {
       if (Math.hypot(this.x - enemy.x, this.y - enemy.y) <= this.size + enemy.radius) {
         enemy.takeDamage(this.damage, this.x - this.vx, this.y - this.vy);
         this.hitEnemies.add(enemy);
+        audio.play('blaster_hit', { x: this.x, y: this.y });
         if (spawnParticles) spawnParticles(this.x, this.y);
         this.pierceLeft--;
         if (this.pierceLeft <= 0) {
